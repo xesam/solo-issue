@@ -1,0 +1,124 @@
+services:
+  postgres:
+    # 服务器实测 16-alpine 在老内核(5.7)+docker19 下 initdb 报 Operation not permitted，15-alpine 已验证可正常运行
+    # 本地 OrbStack 新内核无此问题：.env 用 POSTGRES_TAG=16-alpine 覆盖（volume 数据大版本锁定，与 tag 必须匹配）
+    image: postgres:${POSTGRES_TAG:-15-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: solo_issue
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d solo_issue"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    ports:
+      - "5432:5432" # 本机开发直连用；纯容器部署可删除此行
+
+  # 一次性：迁移 + 种子
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        PRISMA_MIRROR: ${PRISMA_MIRROR:-}
+        BASE_PATH: ${BASE_PATH:-}
+    restart: "no"
+    command: sh -c "pnpm -C apps/web db:deploy && pnpm -C apps/web db:seed"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/solo_issue
+      # 种子参数（幂等：仅在尚无管理员时建号；已有数据不覆盖）：管理员登录键与初始密码（首登强制改密）
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_INIT_PASSWORD: ${ADMIN_INIT_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        PRISMA_MIRROR: ${PRISMA_MIRROR:-}
+        BASE_PATH: ${BASE_PATH:-}
+    restart: unless-stopped
+    command: pnpm -C apps/web start
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/solo_issue
+      # 容器内监听 3000（docs/08 承诺）：显式钉死，防任何残留 env 文件带偏端口
+      PORT: "3000"
+      # 部署子路径（构建期参数化；健康探测与 worker 深链拼接在运行期读它）。
+      # BASE_PATH=/（根路径部署）时 compose 默认 APP_URL 会带尾斜杠，请显式设置 APP_URL
+      BASE_PATH: ${BASE_PATH:-}
+      # 站点对外基址：须含部署 basePath（默认 /solo-issue，随 BASE_PATH 一致）——
+      # 漏前缀会让 IM 深链与企微回调 404
+      APP_URL: ${APP_URL:-http://localhost:8081${BASE_PATH:-/solo-issue}}
+      UPLOAD_DIR: /app/uploads
+      # 附件上限与反代信任开关同样支持 .env 覆盖（否则 Docker 下改 .env 不生效）
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      ALLOW_DEV_LOGIN: ${ALLOW_DEV_LOGIN:-false}
+      ALLOW_IM_MOCK: ${ALLOW_IM_MOCK:-false}
+      # 纯 HTTP 内网部署置 1，生产 HTTPS 保持默认
+      ALLOW_INSECURE_COOKIES: ${ALLOW_INSECURE_COOKIES:-}
+      WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+      WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+      WECOM_SECRET: ${WECOM_SECRET:-}
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      # 宿主机端口可用 .env 的 APP_PORT 自定义；容器内固定 3000（EXPOSE/健康检查均对内）
+      - "${APP_PORT:-8081}:3000"
+    healthcheck:
+      # BASE_PATH 归一化与 base-path.ts 同语义（剥全部首尾斜杠后补单个前导；根路径部署 → 空串）
+      test: ["CMD-SHELL", "node -e \"const q=(process.env.BASE_PATH||'/solo-issue').replace(/^[\\\\/]+|[\\\\/]+$/g,'');const p=q?'/'+q:'';fetch('http://127.0.0.1:3000'+p+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        PRISMA_MIRROR: ${PRISMA_MIRROR:-}
+        BASE_PATH: ${BASE_PATH:-}
+    restart: unless-stopped
+    command: pnpm -C apps/web worker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/solo_issue
+      # 部署子路径与 app 同口径（worker 深链拼接在运行期读它）
+      BASE_PATH: ${BASE_PATH:-}
+      # IM 推送由 worker 执行（pg-boss 消费）：企微凭证与深链基址缺一不可，
+      # 否则 getWecomConfig() 判定通道未配置，通知静默降级为仅站内
+      # 与 app 同口径：深链基址须含部署 basePath（默认 /solo-issue，随 BASE_PATH 一致）
+      APP_URL: ${APP_URL:-http://localhost:8081${BASE_PATH:-/solo-issue}}
+      WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+      WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+      WECOM_SECRET: ${WECOM_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  uploads:

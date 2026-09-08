@@ -1,0 +1,479 @@
+// 轻量级问题追踪系统 · 数据模型
+// 设计说明见 docs/02-data-model.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────── 枚举 ───────────────
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+  GUEST
+}
+
+enum ProjectRole {
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+// 状态语义分组：自动化/统计/AI 依赖分组而非状态名（借鉴 Plane 的验证设计）
+// 状态分组（三档结局分类，行为决定主干）：
+//   ACTIVE     — 还活着（待办/进行中/分诊/验证等一切阶段，由项目级状态名表达）
+//   COMPLETED  — 关闭且有修复产出（自动打 completedAt）
+//   CANCELLED  — 关闭无修复（重复/无法复现/不修；不进修复统计）
+enum StateGroup {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// 自定义字段类型（类型 = 校验 + 展示的注册单元，见 src/server/custom-fields/registry.ts）
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  USER
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  ASSIGNED
+  UNASSIGNED
+  STATE_CHANGED
+  COMMENTED
+  ARCHIVED
+  UNARCHIVED
+  DELETED
+}
+
+enum IdentityProvider {
+  WECOM
+  DINGTALK
+  FEISHU // 预留：加渠道 = 加枚举 + 一个 adapter
+}
+
+// 建号来源（D5，2026-10-21 定局）：记录账号「出生时」的渠道，非实时状态。
+// IM 渠道首登建号 = 渠道值；管理端/脚本/seed 建号 = EMAIL。
+// 加渠道 = 加枚举值（与 IdentityProvider 同模式）。
+enum UserOrigin {
+  EMAIL
+  WECOM
+  DINGTALK
+  FEISHU
+}
+
+enum NotificationType {
+  ASSIGNED
+  MENTIONED
+  COMMENTED
+  STATE_CHANGED
+}
+
+// ─────────────── 用户与身份 ───────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique // 邮箱建号账号的登录键（+passwordHash）；IM 建号一律不写（D1/D2：email 对 IM 登录非凭据、纯档案）
+  origin    UserOrigin // 建号来源：建号渠道的出生事实，与 Identity 集（可登录渠道）为两个正交维度
+  name      String
+  avatarUrl String?
+  isAdmin   Boolean  @default(false) // 实例管理员：仅解锁管理台，不穿透业务数据（与业务权限正交）
+  isActive  Boolean  @default(true)
+  passwordHash        String? // 本地密码登录（bcrypt）；IM 身份仍在 Identity 表
+  mustChangePassword  Boolean @default(false) // 首登/重置后强制改密
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  identities              Identity[]
+  sessions                Session[]
+  workspaceMembers        WorkspaceMember[]
+  projectMembers          ProjectMember[]
+  assignedIssues          IssueAssignee[]
+  createdIssues          Issue[]              @relation("IssueCreator")
+  comments               Comment[]           @relation("CommentAuthor")
+  activities             Activity[]          @relation("ActivityActor")
+  notifications          Notification[]
+  notificationPreferences NotificationPreference[]
+  apiTokens              ApiToken[]
+  viewsCreated           IssueView[]   @relation("ViewCreatedBy")
+  customFieldsCreated    CustomField[]              @relation("CustomFieldCreator")
+  customFieldRevisions   CustomFieldRevision[]      @relation("CustomFieldRevisionActor")
+
+  @@map("users")
+}
+
+// 登录渠道与 User 解耦；同一人可有多条身份（企微 + 钉钉）
+model Identity {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       IdentityProvider
+  providerUserId String // 企微:userid  钉钉:unionId
+  metadata       Json             @default("{}") // 企微成员资料 / 钉钉 staffId 等
+  lastLoginAt    DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("identities")
+}
+
+model Session {
+  id        String   @id // 随机 token 的 SHA-256
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+  @@map("sessions")
+}
+
+// ─────────────── 组织结构 ───────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  icon      String?
+  createdAt DateTime @default(now())
+
+  members  WorkspaceMember[]
+  projects Project[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId     String
+  role       WorkspaceRole @default(MEMBER)
+  joinedAt   DateTime     @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Project {
+  id          String  @id @default(cuid())
+  workspaceId String
+  slug        String
+  name        String
+  leadUserId  String?
+  issueSeq    Int     @default(0) // 项目内 issue 计数器，事务内自增
+  isArchived  Boolean @default(false)
+  isPrivate   Boolean @default(false) // 私有：可见性 = ProjectMember ∪ 工作区 OWNER
+  createdAt   DateTime @default(now())
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   ProjectMember[]
+  states    State[]
+  issues    Issue[]
+  views     IssueView[]
+  customFields CustomField[]
+
+  @@unique([workspaceId, slug])
+  @@map("projects")
+}
+
+model ProjectMember {
+  projectId String
+  userId    String
+  role      ProjectRole @default(MEMBER)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@map("project_members")
+}
+
+// U3.2：保存视图——过滤器/排序/搜索的命名快照（query = IssueFilters JSON）
+model IssueView {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  query       String
+  createdById String
+  createdBy   User     @relation("ViewCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@map("issue_views")
+}
+
+// ─────────────── Issue 核心 ───────────────
+
+model State {
+  id        String     @id @default(cuid())
+  projectId String
+  name      String
+  group     StateGroup @default(ACTIVE)
+  color     String     @default("#94a3b8")
+  sequence  Float      @default(65535)
+  isDefault Boolean    @default(false)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues  Issue[]
+
+  @@unique([projectId, name])
+  @@map("states")
+}
+
+model Issue {
+  id              String    @id @default(cuid())
+  projectId       String
+  number          Int // 项目内序号，展示为 PROJ-123
+  title           String
+  description     Json? // Tiptap 文档
+  descriptionText String? // 派生纯文本：搜索/IM摘要/AI
+  stateId         String?
+  parentId        String?
+  createdById     String
+  completedAt     DateTime?
+  isArchived      Boolean   @default(false)
+  fieldValues     Json? // 自定义字段值 {key: value}（整列 GIN 见下方 @@index type: Gin——服务整列包含查询；path/* 表达式过滤用它不上，见 docs/05 §6.1）
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  state        State?          @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  parent       Issue?          @relation("IssueHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Issue[]         @relation("IssueHierarchy")
+  creator      User            @relation("IssueCreator", fields: [createdById], references: [id])
+  assignees    IssueAssignee[]
+  comments     Comment[]
+  activities   Activity[]
+  notifications Notification[]
+
+  @@unique([projectId, number])
+  @@index([projectId, stateId])
+  @@index([projectId, isArchived, updatedAt])
+  @@index([fieldValues], type: Gin, map: "issues_fieldValues_gin")
+  @@map("issues")
+}
+
+model IssueAssignee {
+  issueId String
+  userId  String
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([issueId, userId])
+  @@map("issue_assignees")
+}
+
+// ─────────────── 自定义字段（定义与值分离）───────────────
+// 定义存本表（项目级、强约束、可审计）；值存 Issue.fieldValues（JSONB + GIN 索引）
+
+model CustomField {
+  id          String    @id @default(cuid())
+  projectId   String
+  key         String // 稳定标识：Agent API / 保存视图 / Activity 依赖，创建后不可变
+  name        String // 显示名，可改
+  type        FieldType @default(TEXT) // 不可变（改类型会令存量值失去语义）
+  options     Json? // SELECT 选项：[{value,label,color?,archived?}]（archived = 选项软删）
+  settings    Json? // 类型专属配置：{ multiple?: boolean（USER 多选）, notifyOn?: { values, notify }（字段级通知规则） }
+  isRequired  Boolean   @default(false)
+  isArchived  Boolean   @default(false) // 字段归档软删：历史值仍可读，表单不再出现
+  sequence    Float     @default(65535)
+  version     Int       @default(1) // 定义变更次数（轻量审计，不做回滚）
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project   Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User                   @relation("CustomFieldCreator", fields: [createdById], references: [id])
+  revisions CustomFieldRevision[]
+
+  @@unique([projectId, key])
+  @@index([projectId])
+  @@map("custom_fields")
+}
+
+// 定义变更审计：每次变更 append 快照（append-only，不支持回滚）
+model CustomFieldRevision {
+  id            String   @id @default(cuid())
+  customFieldId String
+  version       Int
+  snapshot      Json // 变更后的完整定义快照
+  actorId       String?
+  createdAt     DateTime @default(now())
+
+  customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  actor       User?       @relation("CustomFieldRevisionActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([customFieldId, version])
+  @@index([customFieldId, createdAt])
+  @@map("custom_field_revisions")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  issueId   String
+  authorId  String
+  parentId  String? // 支持串回复
+  body      Json // Tiptap 文档（含 @mention 节点）
+  bodyText  String // 派生纯文本
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue   Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author  User     @relation("CommentAuthor", fields: [authorId], references: [id])
+  parent  Comment? @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentThread")
+
+  @@index([issueId, createdAt])
+  @@map("comments")
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  // 现役写入路径仅 issueId（评论/描述粘贴的图片也经 issue 附件端点上传）。
+  // commentId 为预留字段：当前无写入方——接线时须同步接附件鉴权
+  // （服务层 resolveAttachmentAccess 已支持 commentId → comment → issue → project 解析）。
+  issueId    String?
+  commentId  String?
+  uploaderId String
+  storageKey String // StorageAdapter 的 key（MVP 本地卷，可换 S3）
+  filename   String
+  size       Int
+  mimeType   String
+  createdAt  DateTime @default(now())
+
+  @@index([issueId])
+  @@map("attachments")
+}
+
+// 活动日志：append-only，系统的"唯一事实源"（审计/通知/AI 上下文都从这里派生）
+model Activity {
+  id        String         @id @default(cuid())
+  issueId   String
+  projectId String // 反范式冗余，便于项目级 feed/统计
+  actorId   String?
+  action    ActivityAction
+  field     String? // 变更字段（state/assignees/title/custom:<key>…）
+  oldValue  Json?
+  newValue  Json?
+  commentId String?
+  createdAt DateTime       @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  actor User? @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([issueId, createdAt])
+  @@index([projectId, createdAt])
+  @@map("activities")
+}
+
+// ─────────────── 通知 ───────────────
+
+// 模拟收件箱（仅 mock 模式写入）：验证 IM 推送文案/去重/频控的可视化工具
+model MockMessage {
+  id        String   @id @default(cuid())
+  channel   String   // "WECOM"
+  toUser    String   // identity.providerUserId（mock 模式下形如 "mock:new:<姓名>"）
+  title     String
+  summary   String
+  url       String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("mock_messages")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String // 接收者
+  issueId    String
+  projectId  String
+  activityId String
+  type       NotificationType
+  title      String
+  body       String?
+  url        String // 深链 /w/<wsSlug>/p/<projSlug>/issues/<number>
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId, type]) // 天然去重
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+// 偏好结构：{ [type]: { wecom } }（JSONB，加渠道零迁移；dingtalk 等为未来扩展键）
+model NotificationPreference {
+  id        String  @id @default(cuid())
+  userId    String
+  projectId String? // null = 全局默认（注：PG 对 NULL 不强制唯一，应用层保证单行）
+  prefs     Json    @default("{}")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@map("notification_preferences")
+}
+
+// ─────────────── IM 集成 ───────────────
+
+// 群机器人（阶段 2 可选）：项目级 IM 群推送
+model ImWebhook {
+  id        String           @id @default(cuid())
+  projectId String?
+  provider  IdentityProvider
+  url       String
+  events    Json             @default("[]") // 订阅的 ActivityAction 列表
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+
+  @@map("im_webhooks")
+}
+
+// IM 应用凭据（实例级），secret 由应用层加密后存入 config
+model ProviderCredential {
+  provider  IdentityProvider @id
+  config    Json
+  updatedAt DateTime         @updatedAt
+
+  @@map("provider_credentials")
+}
+
+// ─────────────── 面向未来 ───────────────
+
+// AI Agent / 外部集成访问凭证
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  scopes     String[] // e.g. ["issues:read", "issues:write"]
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_tokens")
+}
+
+

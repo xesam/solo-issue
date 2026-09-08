@@ -1,0 +1,30 @@
+{
+  "name": "solo-issue-monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "dev": "pnpm -C apps/web dev",
+    "dev:up": "pnpm -C apps/web dev:up",
+    "dev:restart": "pnpm -C apps/web dev:restart",
+    "dev:stop": "pnpm -C apps/web dev:stop",
+    "build": "pnpm -C apps/web build",
+    "start": "pnpm -C apps/web start",
+    "worker": "pnpm -C apps/web worker",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:unit": "pnpm -C apps/web test:unit",
+    "test:integration": "pnpm -C apps/web test:integration",
+    "test:watch": "pnpm -C apps/web test:watch",
+    "test:coverage": "pnpm -C apps/web test:coverage",
+    "test:e2e": "pnpm -C apps/web test:e2e",
+    "add-user": "pnpm -C apps/web add-user",
+    "db:generate": "pnpm -C apps/web db:generate",
+    "db:migrate": "pnpm -C apps/web db:migrate",
+    "db:deploy": "pnpm -C apps/web db:deploy",
+    "db:reset": "pnpm -C apps/web db:reset",
+    "db:seed": "pnpm -C apps/web db:seed",
+    "verify:seed": "pnpm -C apps/web verify:seed",
+    "verify": "pnpm -C apps/web verify"
+  }
+}

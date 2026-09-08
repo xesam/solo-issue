@@ -1,0 +1,9 @@
+{
+  "name": "agent-mcp-demo",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Claude Code 接入 solo-issue-mcp 的示范配置项目",
+  "engines": {
+    "node": ">=20"
+  }
+}

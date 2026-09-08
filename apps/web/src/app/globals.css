@@ -1,0 +1,252 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* =========================================================
+   设计令牌（shadcn/ui CSS Variables，R6 迁移）
+   规则：应用外观层一律使用语义令牌（bg-background、text-foreground、
+   text-muted-foreground、border-border 等），
+   禁止裸用 slate 与 teal 等调色板类
+   （例外见 docs/07-ui-guidelines.md：品牌色与领域语义色）。
+   暗色模式：补 .dark 块即可启用，令牌已按此设计。
+   ========================================================= */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* 品牌主色：深蓝（blue-700），弃用旧 teal 青 */
+  --background: #f8fafc;          /* slate-50 */
+  --foreground: #0f172a;          /* slate-900 */
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #1d4ed8;             /* blue-700 */
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;           /* slate-100 */
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;    /* slate-500 */
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;         /* red-600 */
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;             /* slate-200 */
+  --input: #cbd5e1;               /* slate-300 */
+  --ring: #1d4ed8;                /* 同 primary，焦点反馈与品牌一致 */
+  --radius: 0.375rem;             /* 6px：更严谨的圆角（卡片档自动派生为 10px） */
+
+  /* U4 状态色令牌（ui-guidelines §1.1）：替代裸 amber/emerald */
+  --success: #059669;             /* emerald-600 */
+  --success-foreground: #ffffff;
+  --success-subtle: #d1fae5;      /* emerald-100 */
+  --success-text: #047857;        /* emerald-700 */
+  --warning: #d97706;             /* amber-600 */
+  --warning-foreground: #ffffff;
+  --warning-subtle: #fef3c7;     /* amber-100 */
+  --warning-text: #92400e;       /* amber-800 */
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+  --primary: #60a5fa;             /* blue-400 */
+  --primary-foreground: #172554; /* 深底蓝上用深色文字，对比更稳 */
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #334155;
+  --input: #475569;
+  --ring: #60a5fa;
+
+  --success: #10b981;             /* emerald-500 */
+  --success-foreground: #052e1a;
+  --success-subtle: #065f46;      /* emerald-800 */
+  --success-text: #6ee7b7;        /* emerald-300 */
+  --warning: #f59e0b;             /* amber-500 */
+  --warning-foreground: #1f1300;
+  --warning-subtle: #78350f;      /* amber-900 */
+  --warning-text: #fcd34d;       /* amber-300 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-text: var(--warning-text);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  /* U4 圆角三档（ui-guidelines §1.3）：控件 md = --radius、卡片 xl = +4px；
+     lg 为过渡档；sm 仅上游小组件使用 */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* U4 光标规则：交互元素一律 pointer（disabled 除外）；文本域/编辑器保持 text。
+     组件里禁止手写 cursor-pointer 散类（见 ui-guidelines §1.2） */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="menuitem"]:not(:disabled),
+  [role="option"]:not(:disabled),
+  [role="tab"]:not(:disabled),
+  [data-interactive]:not(:disabled),
+  summary:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* U5 动画基线：交互元素默认 150ms ease-out 颜色/透明度过渡，
+     悬停/激活反馈全站同节奏；组件层的 transition-* 工具类
+     （utilities 层）优先于本规则，可按需收窄过渡属性 */
+  a,
+  button,
+  [role="button"],
+  [role="menuitem"],
+  [role="option"],
+  [role="tab"],
+  [data-interactive],
+  summary {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity;
+    transition-timing-function: ease-out;
+    transition-duration: 150ms;
+  }
+}
+
+/* ── 富文本内容渲染样式（编辑器与只读视图共用）── */
+.rich-content > * + * {
+  margin-top: 0.5em;
+}
+.rich-content h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 0.9em;
+}
+.rich-content h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 0.8em;
+}
+.rich-content ul,
+.rich-content ol {
+  padding-left: 1.4em;
+}
+.rich-content ul {
+  list-style: disc;
+}
+.rich-content ol {
+  list-style: decimal;
+}
+.rich-content blockquote {
+  border-left: 3px solid var(--input);
+  padding-left: 0.8em;
+  color: var(--muted-foreground);
+}
+.rich-content pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 0.75em 1em;
+  overflow-x: auto;
+  font-size: 0.8rem;
+}
+.rich-content code {
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.rich-content pre code {
+  background: none;
+  padding: 0;
+}
+.rich-content img {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}
+.rich-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Tiptap Placeholder */
+.rich-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* @提及 高亮：跟随品牌主色（teal 系），暗色随 .dark 反转 */
+.mention {
+  background: #ccfbf1;            /* teal-100 */
+  color: #0f766e;                /* teal-700 */
+  border-radius: 4px;
+  padding: 0 0.25em;
+  font-weight: 500;
+}
+.dark .mention {
+  background: #134e4a;           /* teal-900 */
+  color: #99f6e4;               /* teal-200 */
+}
+
+/* ── 窄滚动条（右栏时间线等侧栏内滚区；颜色走令牌）──
+   Chrome/Safari 走 ::-webkit-scrollbar 得 4px（scrollbar-width:thin
+   本身约 11px 且不可调宽，且一旦设置标准属性 webkit 定制即失效）；
+   Firefox 用 @supports 分流兜底 thin */
+.scroll-slim::-webkit-scrollbar {
+  width: 4px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: var(--input);
+  border-radius: 9999px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+@-moz-document url-prefix() {
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
+  }
+}

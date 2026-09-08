@@ -1,0 +1,22 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+# pnpm 11 的设置新家（package.json 的 "pnpm" 字段已废弃，见 https://pnpm.io/settings）。
+# 构建脚本白名单：仅放行必须跑安装脚本的依赖——prisma 系（生成 client）与 esbuild（二
+# 进制装帧）；其余依赖一律禁跑，供应链面收窄
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - esbuild
+  - prisma
+# pnpm 11.10 起干净环境的 fresh install 对每个带构建脚本的依赖要求显式决策（allowBuilds），
+# 缺表即 ERR_PNPM_IGNORED_BUILDS（本机增量安装不触发，docker/CI 必炸）；与白名单同口径：
+# prisma 系与 esbuild 放行，@parcel/watcher 与 @swc/core 的安装脚本仅做平台二进制回退
+# （正式平台二进制经 optionalDependencies 装帧），显式禁跑
+allowBuilds:
+  "@parcel/watcher": false
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@swc/core": false
+  esbuild: true
+  prisma: true

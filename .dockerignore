@@ -1,0 +1,15 @@
+**/node_modules
+**/.next
+.git
+**/.env
+**/.env*.local
+**/*.log
+**/uploads
+**/backups
+**/coverage
+**/test-results
+**/playwright-report
+.DS_Store
+**/.DS_Store
+**/dist
+**/tsconfig.tsbuildinfo
