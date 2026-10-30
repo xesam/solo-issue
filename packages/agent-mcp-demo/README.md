@@ -40,22 +40,14 @@
 
 ### 2.1 换成 npm 发布包 / 线上部署
 
-本目录演示的是接仓库内包的形态。对接外部部署时，把 `command`/`args` 换成通用片段即可（各客户端一致；Windows 变体、多部署多实例见 [packages/mcp/README.md](../mcp/README.md) §3.3/§3.4）：
+本目录默认演示接仓库内包的形态。改用 npm 发布包时，取根下对应形态的示例文件，复制内容替换 [.mcp.json](./.mcp.json)（或放进你自己的项目根）即切换，`SOLO_ISSUE_URL` 换成部署地址（须含 basePath）——各客户端片段一致，Windows 变体、多部署多实例见 [packages/mcp/README.md](../mcp/README.md) §3.3/§3.4：
 
-```json
-{
-  "mcpServers": {
-    "solo-issue": {
-      "command": "npx",
-      "args": ["-y", "solo-issue-mcp@latest"],
-      "env": {
-        "SOLO_ISSUE_URL": "https://issues.example.com/solo-issue",
-        "SOLO_ISSUE_TOKEN": "itr_xxx"
-      }
-    }
-  }
-}
-```
+| 形态 | 示例文件 | 要点 |
+|---|---|---|
+| npx（零安装，通用首选） | [mcp.npx.json](./mcp.npx.json) | `npx -y solo-issue-mcp@latest` 按需拉取并缓存，无需 build/install；`@latest` 每次解析最新发布版，被服务端 426 拒时升级即自愈 |
+| 依赖（版本锁定） | [mcp.deps.json](./mcp.deps.json) | 包钉进 [package.json](./package.json) 的 devDependency（当前 `^0.0.1`，范围随发布调整）→ install 后 `.mcp.json` 指向 `node_modules/solo-issue-mcp/dist/index.js`（亦可用 `node_modules/.bin/solo-issue-mcp`）；本目录照此两步即用，自己项目照搬同款两步。适合版本审计、内网镜像、离线安装 |
+
+两种形态的令牌纪律与 §2 一致：示例一律留空 `SOLO_ISSUE_TOKEN`，由使用者填入。
 
 ## 3. 打开
 
@@ -89,6 +81,7 @@ claude
 | 服务器启动即退，提示缺少 `SOLO_ISSUE_TOKEN` | §2：`.mcp.json` 里填入令牌（留空模板是预期状态，不是故障） |
 | `/mcp` 里找不到 solo-issue 服务器 | 在仓库根或其他目录启动了 `claude`——本配置是项目级的，只在 `packages/agent-mcp-demo` 内生效（§3） |
 | 服务器启动即退，报找不到模块/文件 | §1 的 build 没跑：新 clone 的仓库须先 `pnpm -C packages/mcp build` 产出 `dist/` |
+| 换用 §2.1 依赖形态后启动即退，报找不到 `node_modules/solo-issue-mcp/...` | install 没跑：[package.json](./package.json) 已声明该 devDependency，先 install 才有可指向的产物 |
 | 工具组显示为 `solo_issue`（下划线），按服务器名连字符形式搜索工具无结果 | 同一服务器的两种呈现：Claude Code 工具命名空间把服务器名以 `solo_issue` 形式暴露（`mcp__solo_issue__*`），按此形式检索即命中。先在 `/mcp` 核对连接状态，再用 `claude mcp list` 排除同部署被重复注册的情形 |
 
 其余症状（401/403/426/429、令牌过期、地址错误）对照 [packages/mcp/README.md](../mcp/README.md) §5。

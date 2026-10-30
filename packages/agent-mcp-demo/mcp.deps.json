@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "solo-issue": {
+      "command": "node",
+      "args": ["node_modules/solo-issue-mcp/dist/index.js"],
+      "env": {
+        "SOLO_ISSUE_URL": "http://localhost:8081/solo-issue",
+        "SOLO_ISSUE_TOKEN": "your token"
+      }
+    }
+  }
+}

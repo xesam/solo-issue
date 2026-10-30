@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "solo-issue": {
+      "command": "npx",
+      "args": ["-y", "solo-issue-mcp@latest"],
+      "env": {
+        "SOLO_ISSUE_URL": "http://localhost:8081/solo-issue",
+        "SOLO_ISSUE_TOKEN": "your token"
+      }
+    }
+  }
+}

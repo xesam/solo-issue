@@ -165,7 +165,7 @@ MCP 工具 schema 静态声明，而字段定义是项目级、可变的——`f
 }
 ```
 
-这是所有主流客户端（Claude Desktop / Claude Code / Cursor 等）共用的骨架——stdio 服务器统一为 `command + args + env`，客户端按服务器名给工具做命名空间隔离。各客户端的配置文件位置、Windows 的 `cmd /c npx` 变体、项目级配置（`.mcp.json`）的令牌防泄漏警告与逐步指引，由 `packages/mcp/README.md` 单源承载。Claude Code 另有可直接打开的示范配置项目 [packages/agent-mcp-demo](../packages/agent-mcp-demo)——目录内含项目级 `.mcp.json`（令牌留空模板，指向本仓库包的构建产物）与逐步指引。
+这是所有主流客户端（Claude Desktop / Claude Code / Cursor 等）共用的骨架——stdio 服务器统一为 `command + args + env`，客户端按服务器名给工具做命名空间隔离。各客户端的配置文件位置、Windows 的 `cmd /c npx` 变体、项目级配置（`.mcp.json`）的令牌防泄漏警告与逐步指引，由 `packages/mcp/README.md` 单源承载。Claude Code 另有可直接打开的示范配置项目 [packages/agent-mcp-demo](../packages/agent-mcp-demo)——目录内含项目级 `.mcp.json`（令牌留空模板，指向本仓库包的构建产物）、npm 发布包两种接入形态的示例文件（`mcp.npx.json`/`mcp.deps.json`，依赖形态以 devDependency 落在目录 `package.json`）与逐步指引。
 
 ### 4.4 多部署连接
 

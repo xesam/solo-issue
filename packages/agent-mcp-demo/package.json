@@ -5,5 +5,8 @@
   "description": "Claude Code 接入 solo-issue-mcp 的示范配置项目",
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "solo-issue-mcp": "^0.0.1"
   }
 }
