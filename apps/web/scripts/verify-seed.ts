@@ -17,7 +17,7 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "solo-issue@github.com").trim().
 
 // 默认 5 状态——与 src/server/services/project.ts 的 DEFAULT_STATES 同步维护
 const DEFAULT_STATES = [
-  { name: "待处理池", color: "#64748b", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
+  { name: "待梳理", color: "#64748b", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
   { name: "待办", color: "#64748b", sequence: 25000, group: "ACTIVE" as const, isDefault: false },
   { name: "进行中", color: "#f59e0b", sequence: 35000, group: "ACTIVE" as const, isDefault: false },
   { name: "已完成", color: "#22a559", sequence: 45000, group: "COMPLETED" as const, isDefault: false },

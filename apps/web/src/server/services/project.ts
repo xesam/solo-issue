@@ -5,7 +5,7 @@ import { isWsOwnerRole } from "@/server/auth/project-visibility";
 
 // 新项目自动创建的默认状态（语义分组借鉴 Plane 的验证设计）
 export const DEFAULT_STATES = [
-  { name: "待处理池", color: "#64748b", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
+  { name: "待梳理", color: "#64748b", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
   { name: "待办", color: "#64748b", sequence: 25000, group: "ACTIVE" as const, isDefault: false },
   { name: "进行中", color: "#f59e0b", sequence: 35000, group: "ACTIVE" as const, isDefault: false },
   { name: "已完成", color: "#22a559", sequence: 45000, group: "COMPLETED" as const, isDefault: false },

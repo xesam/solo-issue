@@ -70,7 +70,7 @@ fixture 纪律（对共享开发库安全的保证）：
 |---|---|
 | `auth.spec.ts` | mock 通道登录 → `/me` 落地；退出回 `/signin` |
 | `issue-create.spec.ts` | 新建页空值置灰 → 创建并返回 → 列表/看板可见 → UI 删除（含编号强校验 ConfirmDialog） |
-| `issue-state.spec.ts` | 待处理池 → 进行中 → 已完成，时间线逐条落痕 |
+| `issue-state.spec.ts` | 待梳理 → 进行中 → 已完成，时间线逐条落痕 |
 | `comment-mention.spec.ts` | 评论框 @提及（弹层 `role=listbox/option`）→ 跨用户 MENTIONED 通知闭环（描述路径的提及通知走 `issue.ts` 另一分支，暂无 e2e 接线） |
 | `global-search.spec.ts` | ⌘K 检索 → 回车与点击双路径深链 |
 

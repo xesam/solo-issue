@@ -11,7 +11,7 @@ test.afterEach(async () => {
   await sweepE2eData(); // 无论成败，失败路径的尝试数据一并兜走
 });
 
-test("状态流转：待处理池 → 进行中 → 已完成，时间线逐条落痕", async ({ page }) => {
+test("状态流转：待梳理 → 进行中 → 已完成，时间线逐条落痕", async ({ page }) => {
   const title = marker("state");
   await loginAs(page, WECOM1);
 
@@ -27,12 +27,12 @@ test("状态流转：待处理池 → 进行中 → 已完成，时间线逐条�
 
   const save = page.locator('button:has-text("保存"):not(:has-text("返回"))');
 
-  // 第一段：待处理池 → 进行中
-  await page.getByText("待处理池", { exact: true }).first().click();
+  // 第一段：待梳理 → 进行中
+  await page.getByText("待梳理", { exact: true }).first().click();
   await page.getByRole("option", { name: "进行中", includeHidden: false }).click();
   await save.click();
   await expect(page.getByText("已保存").first()).toBeVisible();
-  await expect(page.getByText("将状态从 待处理池 改为 进行中")).toBeVisible();
+  await expect(page.getByText("将状态从 待梳理 改为 进行中")).toBeVisible();
 
   // 第二段：进行中 → 已完成
   await page.getByText("进行中", { exact: true }).first().click();
