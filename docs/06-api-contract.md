@@ -101,7 +101,7 @@
 ### 5.4 字段过滤与列表列
 
 - `GET /api/projects/:projectId/issues` 支持 `cf.<key>=<value>`（可多个，AND 语义；`cf.` 前缀与固定参数命名空间隔离）。**可检索类型仅 SELECT**：单选等值、多选包含（`array_contains`）；其余类型参数静默忽略、退化为不过滤；未定义 key 忽略而非报错（字段删/改名后旧链接退化为不过滤）
-- `GET /api/search` 跨项目字段过滤：允许**省略 `q`**（纯字段检索），`q` 与 `cf.*` 同时缺失才 422；按项目分组各自用本地定义归一化，项目间 **OR**；参与门槛为项目**完整定义全部过滤键且均为可检索类型**，部分定义/不可检索类型的项目**整组排除**（与项目内列表的「未定义 key 退化不过滤」刻意不同——跨项目检索不允许模糊命中）；响应附 `issues[].fieldValues`、`appliedCustomFilters`、`matchedFieldProjects[].schemaUrl`
+- `GET /api/search` 跨项目字段过滤：允许**省略 `q`**（纯字段检索），`q` 与 `cf.*` 同时缺失才 422；按项目分组各自用本地定义归一化，项目间 **OR**；参与门槛为项目**完整定义全部过滤键且均为可检索类型**，部分定义/不可检索类型的项目**整组排除**（与项目内列表的「未定义 key 退化不过滤」刻意不同——跨项目检索不允许模糊命中）；字段过滤**仅作用于 issue 分组**——项目分组仅在 `q` 非空时参与（见 §13）；响应附 `issues[].fieldValues`、`appliedCustomFilters`、`matchedFieldProjects[].schemaUrl`
 - 列展示：前端渲染，无专门端点；可勾选字段为列表列（`localStorage` key `cf-cols:<projectId>`）
 - 过滤条件可随保存视图快照（`IssueView.query` 内 `fieldValues` 对象），点击回放
 
@@ -152,7 +152,7 @@
 - **表格类列表**（issue 列表）用**页码式**：`page`（1 起）/ `pageSize`（10–500，缺省 50），返回带 `total`；排序服务端化（`orderBy`/`orderDir` 进 URL，可选 `updatedAt`/`createdAt`，缺省 `updatedAt` 倒序——与 §1 列表参数口径一致）
 - **时间线**（评论/通知/工作台）用**复合游标**：`?before=<ISO 时间>&beforeId=<id>`，排序 `(时间列 desc, id desc)`——同一事务多行时间戳相同（Postgres `now()` 事务稳定），仅凭时间游标会漏行，`id` 决胜才不重不漏
 - **看板不页码化**：单次拉最新 500 条（`pageSize=500`），超限响应带 `total`，前端提示用过滤器缩小范围
-- 不做静默截断：要么可翻页拉全（页码/游标），要么显式给出上限——看板以 `total` 提示，`/api/search` 固定上限 20 条（见 §13 表）
+- 不做静默截断：要么可翻页拉全（页码/游标），要么显式给出上限——看板以 `total` 提示，`/api/search` 固定上限 issue 20 条、项目 5 条（见 §13 表）
 
 ## 11. 个人工作台
 
@@ -188,7 +188,7 @@
 | POST | `/api/api-tokens` | `{ name, scopes[], expiresInDays? }` → 201，`token` **仅此一次返回**；`name` 必填（422） |
 | PATCH | `/api/api-tokens/:tokenId` | 重命名自己的令牌（scope/有效期签发后不可改） |
 | DELETE | `/api/api-tokens/:tokenId` | 撤销自己的令牌 |
-| GET | `/api/search?q=` | 跨工作区全局搜索 issue（支持 `cf.<key>=<value>`，见 §5.4），结果带深链 `url`；**固定上限 20 条**，按 `updatedAt` 倒序取头部（无相关度排序、无分页——上限即截断口径，见 §10） |
+| GET | `/api/search?q=` | 跨工作区全局搜索 issue 标题/描述与**项目名**（支持 `cf.<key>=<value>`，见 §5.4），结果带深链 `url`（issue → 详情页、项目 → 项目页）；**固定上限 issue 20 条**（`updatedAt` 倒序）**/ 项目 5 条**（`createdAt` 倒序），均无相关度排序、无分页——上限即截断口径（见 §10）；项目分组仅在 `q` 非空时参与（纯字段检索时为空数组） |
 
 **Bearer 规则**（完整版见 [AGENTS.md](../AGENTS.md)）：权限 = scope ∩ 所属用户角色；scope = 资源:读写（路径最后一个资源段 + 方法推导，子资源随母资源 scope），`*` 全部；未知资源默认拒绝（唯一豁免：`/api/meta` 版本协商，任何有效令牌可读）；频控 120 次/分/令牌（429 带 `Retry-After`）；带过旧 `X-Client: solo-issue-mcp/<version>` 头的请求全程 `426`。scope 白名单单源至 `apps/web/src/lib/scopes.ts`（`API_SCOPES`），服务端 `token.ts` 与前端 `validations.ts` 共用。契约版本的定级与升位规则单源于 [11-mcp-adapter.md](11-mcp-adapter.md) §5。
 

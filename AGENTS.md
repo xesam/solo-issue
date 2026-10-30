@@ -105,10 +105,11 @@ scope 推导规则：资源 = 路径中**最后命中的白名单资源段**（i
 ### search_everything —— 全局搜索（首选发现工具）
 ```
 GET /api/search?q=<关键词>[&cf.<key>=<value>]
-→ { issues: [{ ref, number, title, state, fieldValues, project, url }],
+→ { projects: [{ id, name, slug, workspace, url }],
+    issues: [{ ref, number, title, state, fieldValues, project, url }],
     appliedCustomFilters?, matchedFieldProjects?: [{ projectId, schemaUrl }] }
 ```
-跨工作区检索 issue 标题/描述（命中上限 20 条）；`url` 为可直接给用户的深链（根相对路径，拼接 `SOLO_ISSUE_URL` 前缀即绝对地址）。
+跨工作区检索 issue 标题/描述（命中上限 20 条）与**项目名**（上限 5 条，`q` 为空的纯字段检索时项目组为空数组）；`url` 为可直接给用户的深链（根相对路径——issue → 详情页、项目 → 项目页，拼接 `SOLO_ISSUE_URL` 前缀即绝对地址）。
 
 **CF-5 自定义字段过滤**：`cf.<key>=<value>` 按项目自定义字段过滤 issue（可多个；**同一项目内多字段 AND，字段定义是项目级的——不同项目间命中任一项目的条件即算匹配**）。
 - **可检索类型仅 SELECT**（CF-3c）：单选等值/多选包含；含不可检索类型键的项目不参与匹配（见下条门槛）；

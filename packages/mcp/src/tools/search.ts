@@ -17,7 +17,7 @@ export const searchTools: ToolSpec<Args>[] = [
   {
     name: "search_everything",
     description:
-      "跨工作区全局搜索 issue，结果含可直接给用户的深链 url 与 fieldValues。q 与 filters 至少其一（都缺则 422）；多选字段为包含语义。",
+      "跨工作区全局搜索 issue 与项目：issue 结果含可直接给用户的深链 url 与 fieldValues，项目名命中给项目页深链（q 为空的纯字段检索时项目组为空）。q 与 filters 至少其一（都缺则 422）；字段过滤仅作用于 issue；多选字段为包含语义。",
     inputSchema: shape,
     run: (api, a) => api.get("/api/search", withFieldFilters(a.filters, { q: a.q })),
   },

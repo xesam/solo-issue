@@ -183,6 +183,12 @@ async function main() {
   const hitIssues = search.json?.data?.issues ?? [];
   check("搜索结果带深链",
     search.status === 200 && hitIssues.length > 0 && hitIssues.every((i: any) => i.url?.startsWith("/w/")));
+  // 项目名检索：搜 demo 项目名片段 → projects 组命中并给项目页深链
+  const projSearch = await api("GET", `/api/search?q=${encodeURIComponent("演示")}`, { token: TOKEN });
+  const projHits = projSearch.json?.data?.projects ?? [];
+  check("搜索项目名片段命中项目组",
+    projSearch.status === 200 && projHits.some((p: any) => p.slug === "demo" && p.url?.startsWith("/w/")),
+    `(${projHits.map((p: any) => p.name).join(",") || "无命中"})`);
 
   // ── 6b. 自定义字段的 Agent 面（自描述 schema + 跨项目字段过滤）──
   console.log("\n[6b] 自定义字段（自描述 + 过滤）");

@@ -49,3 +49,19 @@ test("全局搜索：⌘K 检索 → 回车与点击双路径深链", async ({ p
 
   await deleteIssueViaUi(page, number);
 });
+
+// 旅程：项目名检索——项目存在但其下无标题/描述含关键词的 issue 时，
+// 搜索项目名片段必须命中「项目」分组并深链到项目页（搜 issue 两列找不到项目的缺口）
+test("全局搜索：项目名片段命中项目组 → 深链项目页", async ({ page }) => {
+  await loginAs(page, WECOM1);
+
+  await page.keyboard.press("ControlOrMeta+k");
+  const input = page.locator('input[placeholder*="搜索"]');
+  await expect(input).toBeVisible();
+  // 演示项目（slug=demo，verify-seed 预置）：搜中文片段"演示"而非全名，复现子串场景
+  await input.fill("演示");
+  const option = page.getByRole("option", { name: /演示项目/ });
+  await expect(option).toBeVisible({ timeout: 15_000 });
+  await option.locator("button").click();
+  await page.waitForURL("**/p/demo", { timeout: 15_000 });
+});

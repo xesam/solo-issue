@@ -123,7 +123,7 @@ Windows 上 `npx` 需经 `cmd` 启动：
 | `list_states` | 项目状态列表（stateId 与三档结局语义） |
 | `list_members` | 成员列表（assigneeIds 的 userId 来源） |
 | `get_fields_schema` | 自定义字段 JSON Schema——写 issue 的 fieldValues 前必读 |
-| `search_everything` | 跨工作区搜索（`q` + 自定义字段过滤，结果带深链） |
+| `search_everything` | 跨工作区搜索 issue 与项目（`q` + 自定义字段过滤，结果带深链；项目名命中给项目页链接） |
 | `list_issues` | 项目内列表（状态/指派/关键词/字段过滤、分页） |
 | `read_issue` | issue 详情 |
 | `read_history` | 活动流（谁在何时改了什么） |

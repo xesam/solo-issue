@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, TriangleAlert, RotateCcw } from "lucide-react";
+import { Search, Loader2, TriangleAlert, RotateCcw, Folder } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { StateBadge } from "@/components/ui/bits";
@@ -15,11 +15,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// F2 全局搜索（顶栏常驻触发，⌘K）；跨工作区检索问题。
+// F2 全局搜索（顶栏常驻触发，⌘K）；跨工作区检索问题与项目（项目名命中 → 项目页深链）。
 // 手写 fixed 遮罩已迁 shadcn Dialog（守 ui-guidelines「弹窗一律 Dialog」），
 //       获得焦点陷阱/ESC/滚动锁/aria-modal；错误态可重试。
 // 防抖只取消未发的定时器，取消不了在飞的请求——慢的旧响应回来会覆写新结果、
 // 还把 loading 拉低，故 runSearch 以序号守卫：过期的响应整包丢弃。
+
+type SearchProject = {
+  id: string;
+  name: string;
+  slug: string;
+  workspace: { slug: string };
+  // API 直接给出目标地址（项目页）
+  url: string;
+};
 
 type SearchIssue = {
   id: string;
@@ -31,7 +40,7 @@ type SearchIssue = {
   url: string;
 };
 
-type Results = { issues: SearchIssue[] };
+type Results = { issues: SearchIssue[]; projects: SearchProject[] };
 
 export default function GlobalSearch() {
   const router = useRouter();
@@ -106,14 +115,31 @@ export default function GlobalSearch() {
     };
   }, [q]);
 
+  // 键盘导航的扁平序：项目组在前（宏观实体），问题组在后
   const flat: {
     key: string;
-    kind: "issue";
+    kind: "project" | "issue";
     url: string;
     node: React.ReactNode;
   }[] = [];
 
   if (results) {
+    for (const p of results.projects) {
+      flat.push({
+        key: `p-${p.id}`,
+        kind: "project",
+        url: p.url,
+        node: (
+          <>
+            <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground/70">
+              {p.workspace.slug}
+            </span>
+          </>
+        ),
+      });
+    }
     for (const i of results.issues) {
       flat.push({
         key: `i-${i.id}`,
@@ -227,15 +253,21 @@ export default function GlobalSearch() {
                     {t("retrieving")}
                   </p>
                 )}
-                {results!.issues.length > 0 && (
-                  <p className="px-2.5 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-                    {t("issuesGroup", { count: results!.issues.length })}
-                  </p>
-                )}
-                <div role="listbox" aria-label={t("issuesGroup", { count: results!.issues.length })}>
-                  {flat.map((item, idx) => {
-                    return (
-                      <div key={item.key} role="option" aria-selected={active === idx}>
+                <div role="listbox" aria-label={t("dialogTitleSr")}>
+                  {flat.map((item, idx) => (
+                    <Fragment key={item.key}>
+                      {/* 组标题随首条插行：项目组在前（宏观实体），问题组在后 */}
+                      {item.kind === "project" && idx === 0 && (
+                        <p className="px-2.5 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+                          {t("projectsGroup", { count: results!.projects.length })}
+                        </p>
+                      )}
+                      {item.kind === "issue" && (idx === 0 || flat[idx - 1].kind === "project") && (
+                        <p className="px-2.5 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+                          {t("issuesGroup", { count: results!.issues.length })}
+                        </p>
+                      )}
+                      <div role="option" aria-selected={active === idx}>
                         <button
                           onClick={() => go(idx)}
                           onMouseEnter={() => setActive(idx)}
@@ -247,8 +279,8 @@ export default function GlobalSearch() {
                           {item.node}
                         </button>
                       </div>
-                    );
-                  })}
+                    </Fragment>
+                  ))}
                 </div>
               </>
             )}
