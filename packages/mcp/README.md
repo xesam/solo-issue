@@ -119,9 +119,11 @@ Windows 上 `npx` 需经 `cmd` 启动：
 
 | 工具 | 说明 |
 |---|---|
-| `list_projects` | 工作区项目列表（其余工具 projectId 的来源） |
+| `whoami` | 令牌归属用户画像 + 所属工作区——@提及/指派前的身份对齐（scope 豁免端点，任何有效令牌可调） |
+| `list_workspaces` | 我的工作区列表（含角色与项目数）——`wsSlug` 的来源 |
+| `list_projects` | 指定工作区的项目列表（其余工具 projectId 的来源；`wsSlug` 必填） |
 | `list_states` | 项目状态列表（stateId 与三档结局语义） |
-| `list_members` | 成员列表（assigneeIds 的 userId 来源） |
+| `list_members` | 工作区成员列表（assigneeIds 的 userId 来源；`wsSlug` 必填） |
 | `get_fields_schema` | 自定义字段 JSON Schema——写 issue 的 fieldValues 前必读 |
 | `search_everything` | 跨工作区搜索 issue 与项目（`q` + 自定义字段过滤，结果带深链；项目名命中给项目页链接） |
 | `list_issues` | 项目内列表（状态/指派/关键词/字段过滤、分页） |
@@ -130,6 +132,8 @@ Windows 上 `npx` 需经 `cmd` 启动：
 | `create_issue` | 创建（无幂等键：失败后先 search 确认再补建） |
 | `update_issue` | 部分更新（只传变更字段，多次调用安全） |
 | `add_comment` | 评论（Tiptap JSON，支持 @提及） |
+
+发现链：`whoami`（我是谁）→ `list_workspaces`（在哪几个工作区）→ `list_projects`（各工作区有什么项目）→ 其余工具按 `projectId` 操作。
 
 指派/提及/状态变更/评论会自动通知相关同事——无需（也无法）经 MCP 发通知。
 

@@ -45,9 +45,11 @@ const all = [...discoveryTools, ...searchTools, ...issueTools, ...commentTools] 
 }[];
 
 describe("工具面清单", () => {
-  it("11 个工具全覆盖（与 docs/11-mcp-adapter.md §3.1 一致）", () => {
+  it("13 个工具全覆盖（与 docs/11-mcp-adapter.md §3.1 一致）", () => {
     expect(toolNames.sort()).toEqual(
       [
+        "whoami",
+        "list_workspaces",
         "list_projects",
         "list_states",
         "list_members",
@@ -65,9 +67,15 @@ describe("工具面清单", () => {
 });
 
 describe("discover 细粒度工具", () => {
-  it("wsSlug 缺省 main；projectId 进路径；wsSlug 做段编码", async () => {
-    expect((await run(byName(discoveryTools, "list_projects"), {})).url).toBe(
-      "http://t/solo-issue/api/workspaces/main/projects",
+  it("whoami/list_workspaces 无参；wsSlug 与 projectId 进路径并做段编码", async () => {
+    expect((await run(byName(discoveryTools, "whoami"), {})).url).toBe(
+      "http://t/solo-issue/api/me",
+    );
+    expect((await run(byName(discoveryTools, "list_workspaces"), {})).url).toBe(
+      "http://t/solo-issue/api/workspaces",
+    );
+    expect((await run(byName(discoveryTools, "list_projects"), { wsSlug: "corp ops" })).url).toBe(
+      "http://t/solo-issue/api/workspaces/corp%20ops/projects",
     );
     expect((await run(byName(discoveryTools, "list_states"), { projectId: "p1" })).url).toBe(
       "http://t/solo-issue/api/projects/p1/states",

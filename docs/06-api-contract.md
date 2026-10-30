@@ -190,7 +190,7 @@
 | DELETE | `/api/api-tokens/:tokenId` | 撤销自己的令牌 |
 | GET | `/api/search?q=` | 跨工作区全局搜索 issue 标题/描述与**项目名**（支持 `cf.<key>=<value>`，见 §5.4），结果带深链 `url`（issue → 详情页、项目 → 项目页）；**固定上限 issue 20 条**（`updatedAt` 倒序）**/ 项目 5 条**（`createdAt` 倒序），均无相关度排序、无分页——上限即截断口径（见 §10）；项目分组仅在 `q` 非空时参与（纯字段检索时为空数组） |
 
-**Bearer 规则**（完整版见 [AGENTS.md](../AGENTS.md)）：权限 = scope ∩ 所属用户角色；scope = 资源:读写（路径最后一个资源段 + 方法推导，子资源随母资源 scope），`*` 全部；未知资源默认拒绝（唯一豁免：`/api/meta` 版本协商，任何有效令牌可读）；频控 120 次/分/令牌（429 带 `Retry-After`）；带过旧 `X-Client: solo-issue-mcp/<version>` 头的请求全程 `426`。scope 白名单单源至 `apps/web/src/lib/scopes.ts`（`API_SCOPES`），服务端 `token.ts` 与前端 `validations.ts` 共用。契约版本的定级与升位规则单源于 [11-mcp-adapter.md](11-mcp-adapter.md) §5。
+**Bearer 规则**（完整版见 [AGENTS.md](../AGENTS.md)）：权限 = scope ∩ 所属用户角色；scope = 资源:读写（路径最后一个资源段 + 方法推导，子资源随母资源 scope），`*` 全部；未知资源默认拒绝（豁免：`/api/meta` 版本协商与 `/api/me` 身份回吐，任何有效令牌可读）；频控 120 次/分/令牌（429 带 `Retry-After`）；带过旧 `X-Client: solo-issue-mcp/<version>` 头的请求全程 `426`。scope 白名单单源至 `apps/web/src/lib/scopes.ts`（`API_SCOPES`），服务端 `token.ts` 与前端 `validations.ts` 共用。契约版本的定级与升位规则单源于 [11-mcp-adapter.md](11-mcp-adapter.md) §5。
 
 ## 14. 个人通知（会话专用）
 
@@ -208,6 +208,7 @@
 |---|---|---|
 | GET | `/api/health` | 健康检查（含数据库连通性；挂在部署 basePath 之下，见 `apps/web/src/lib/base-path.ts`） |
 | GET | `/api/meta` | 版本协商（[11-mcp-adapter.md](11-mcp-adapter.md) §5）：应用 `version` + 契约版本 `apiContractVersion` + mcp 放行下限 `minMcpVersion`；Bearer/会话双通道，Bearer 侧豁免资源 scope |
+| GET | `/api/me` | 身份回吐：令牌归属用户画像（id/name/email/isAdmin）+ 所属工作区（`role` + workspace 摘要，与 `/api/auth/me` 的 workspaces 同构、不含会话态字段）；Bearer/会话双通道，Bearer 侧豁免资源 scope（同 `/api/meta`）——Agent 对齐「我是谁」与工作区发现的最小前提；会话壳仍走 `/api/auth/me`（Bearer 禁区，见 §1） |
 | GET | `/api/mock/messages` | 模拟收件箱（仅 `ALLOW_IM_MOCK`；Bearer 禁区）。收件箱消息由 mock 通道服务端直写 DB，无 POST 入口 |
 | POST | `/api/locale` | 语言切换：写 `NEXT_LOCALE` 偏好 cookie（非 httpOnly，`SameSite=Lax`），无副作用；入参 `{ locale }` 走 zod 枚举校验（`LOCALES`），非法值 422 |
 
