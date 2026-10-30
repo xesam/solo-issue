@@ -31,8 +31,14 @@ describe("SDK 端 zod 语义（最小参数集必须可通过校验）", () => {
     ).not.toThrow();
   });
 
-  it("list_projects 可零参调用（wsSlug 缺省 main）", () => {
-    expect(() => z.object(byName(discoveryTools, "list_projects").inputSchema).parse({})).not.toThrow();
+  it("whoami / list_workspaces 零参可调；list_projects / list_members 的 wsSlug 必填", () => {
+    expect(() => z.object(byName(discoveryTools, "whoami").inputSchema).parse({})).not.toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_workspaces").inputSchema).parse({})).not.toThrow();
+    // wsSlug 必填化：缺参在 SDK 调用层即拒——缺省值会静默遮蔽其余工作区
+    expect(() => z.object(byName(discoveryTools, "list_projects").inputSchema).parse({})).toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_projects").inputSchema).parse({ wsSlug: "main" })).not.toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_members").inputSchema).parse({})).toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_members").inputSchema).parse({ wsSlug: "main" })).not.toThrow();
   });
 
   it("add_comment 的 body 必填（Tiptap 文档）", () => {

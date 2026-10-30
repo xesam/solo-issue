@@ -104,9 +104,18 @@ async function main() {
   check("令牌以 itr_ 开头且仅此一次返回",
     typeof TOKEN === "string" && TOKEN.startsWith("itr_") && mintedList.status === 200 && !listHasPlaintext);
 
-  // ── 2. Agent 上下文发现：工作区 → 项目 → 状态 → 成员 ──
+  // ── 2. Agent 上下文发现：身份 → 工作区 → 项目 → 状态 → 成员 ──
   console.log("\n[2] 上下文发现（Bearer）");
-  const projects = await api("GET", `/api/workspaces/main/projects`, { token: TOKEN });
+  const me = await api("GET", "/api/me", { token: TOKEN });
+  check("whoami：身份回显（scope 豁免端点）",
+    me.status === 200 && !!me.json?.data?.user?.id,
+    `(${me.json?.data?.user?.name ?? "?"})`);
+  const meSession = await api("GET", "/api/me", { cookie: admin });
+  check("会话通道同样可达 /api/me（双通道对照）", meSession.status === 200 && !!meSession.json?.data?.user);
+  const wss = await api("GET", "/api/workspaces", { token: TOKEN });
+  const WS = (wss.json?.data ?? [])[0]?.slug;
+  check("列出我的工作区（wsSlug 来源）", wss.status === 200 && typeof WS === "string", `(首个: ${WS})`);
+  const projects = await api("GET", `/api/workspaces/${WS}/projects`, { token: TOKEN });
   check("列出项目", projects.status === 200);
   const project = projects.json?.data?.find((p: any) => p.slug === DEMO_PROJECT);
   check("找到演示项目", !!project, `(${project?.name})`);
@@ -116,7 +125,7 @@ async function main() {
   const todo = (states.json?.data ?? []).find((s: any) => s.isDefault);
   check("列出状态（须含默认状态）", states.status === 200 && !!todo, `(默认状态 id: ${todo?.id?.slice(-6)})`);
 
-  const members = await api("GET", "/api/workspaces/main/members", { token: TOKEN });
+  const members = await api("GET", `/api/workspaces/${WS}/members`, { token: TOKEN });
   const ww = members.json?.data?.find((m: any) => m.user.email === "wangwu@example.com");
   check("列出成员（200 找到王五）", members.status === 200 && !!ww, `(王五 id: ${ww?.user.id?.slice(-6)})`);
 
@@ -287,6 +296,8 @@ async function main() {
 
   const noAuth = await api("GET", `/api/projects/${PID}/issues`);
   check("无凭证 → 401", noAuth.status === 401);
+  const noAuthMe = await api("GET", "/api/me");
+  check("无凭证访问 /api/me → 401", noAuthMe.status === 401);
 
   const searchNoScope = await api("GET", "/api/search?q=x", { token: RO_TOKEN });
   check("缺 search:read 的令牌调搜索 → 403", searchNoScope.status === 403);
@@ -299,7 +310,11 @@ async function main() {
   const DISCOVER_TOKEN = mint3.json?.data?.token;
   const readStates = await api("GET", `/api/projects/${PID}/states`, { token: DISCOVER_TOKEN });
   check("projects:read 令牌可列状态（随项目 scope）", readStates.status === 200);
-  const readMembers = await api("GET", `/api/workspaces/main/members`, { token: DISCOVER_TOKEN });
+  const readMe = await api("GET", "/api/me", { token: DISCOVER_TOKEN });
+  check("projects:read 令牌可读身份（/api/me 为 scope 豁免端点）", readMe.status === 200 && !!readMe.json?.data?.user);
+  const readWss = await api("GET", "/api/workspaces", { token: DISCOVER_TOKEN });
+  check("projects:read 令牌可列我的工作区（workspaces→projects 推导）", readWss.status === 200);
+  const readMembers = await api("GET", `/api/workspaces/${WS}/members`, { token: DISCOVER_TOKEN });
   check("projects:read 令牌可列工作区成员（随项目 scope）", readMembers.status === 200);
   const listIssues403 = await api("GET", `/api/projects/${PID}/issues`, { token: DISCOVER_TOKEN });
   check("projects:read 令牌列 issue → 403（缺 issues:read）", listIssues403.status === 403);

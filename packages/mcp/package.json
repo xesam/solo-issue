@@ -1,6 +1,6 @@
 {
   "name": "solo-issue-mcp",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MCP server for solo-issue: a thin protocol adapter over its REST API, driven by Bearer tokens issued from the deployment.",
   "license": "MIT",
   "type": "module",

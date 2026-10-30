@@ -96,9 +96,11 @@ solo-issue/
 
 | 工具 | REST 端点 | 说明 |
 |---|---|---|
-| `list_projects` | `GET /api/workspaces/:wsSlug/projects` | 项目列表（含 issue 计数）；`wsSlug` 缺省 `main` |
+| `whoami` | `GET /api/me` | 令牌归属用户画像 + 所属工作区（身份归因：@提及/指派/活动审计的对齐锚；scope 豁免端点，任何有效令牌可调） |
+| `list_workspaces` | `GET /api/workspaces` | 我的工作区（role/projectCount）——其余工作区级工具 `wsSlug` 的来源 |
+| `list_projects` | `GET /api/workspaces/:wsSlug/projects` | 项目列表（含 issue 计数）；`wsSlug` 必填（来源 `list_workspaces`——缺省值会静默遮蔽其余工作区） |
 | `list_states` | `GET /api/projects/:projectId/states` | 状态列表 |
-| `list_members` | `GET /api/workspaces/:wsSlug/members` | 成员（assignee 的 userId 来源） |
+| `list_members` | `GET /api/workspaces/:wsSlug/members` | 成员（assignee 的 userId 来源）；`wsSlug` 必填（来源 `list_workspaces`） |
 | `get_fields_schema` | `GET /api/projects/:projectId/fields/schema` | 自定义字段 JSON Schema（写入前必读） |
 | `search_everything` | `GET /api/search` | 全局搜索；`filters: { key: value }` 转译为 `cf.<key>=<value>` |
 | `list_issues` | `GET /api/projects/:projectId/issues` | 项目内筛选（stateId/assigneeId/q/分页/cf.*） |
@@ -290,7 +292,7 @@ sequenceDiagram
 
 实现侧已落地：`packages/mcp` 全量实现（工具面、启动自检、错误透传、单测），verify-mcp 契约矩阵纳入 `pnpm verify`；配套文档影响面均已合入（AGENTS.md 的 426 错误行与 MCP 接入段、06 的 `/api/meta` 与错误语义、10-testing 的验收矩阵分层说明、01 §6 的已实现声明、`packages/mcp/README.md` 用户面文档）。
 
-待执行：npm 发布——发布前 `npx -y solo-issue-mcp@latest` 拉取不可用，本地联调以仓库构建产物为准；发布时按 §5.5 单 PR 原子变更补充根 README 的 MCP 快速入口。
+npm 已发布：`solo-issue-mcp@0.0.1`（2026-10-26）起 `npx -y solo-issue-mcp@latest` 可用，根 README 的 MCP 快速入口已就位。仓库当前版本 0.0.2（whoami / list_workspaces 增补与 `wsSlug` 必填化），待下一次发布推上 `latest`。后续发布按 §5.5 单 PR 原子变更：服务端 tag ↔ MCP 版本映射随发布说明记录；工具面破坏性变更按 semver 升位并在 release note 标注。
 
 ## 8. 风险与缓解
 

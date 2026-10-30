@@ -217,4 +217,9 @@ describe("X-Client 版本闸与 /api/meta 豁免（docs/11-mcp-adapter.md §5.2�
     expect((await verifyApiTokenRequest(reqWith("/api/meta", token, null)))?.userId).toBe(user.id);
     await expectHttpError(verifyApiTokenRequest(reqWith("/api/health", token, null)), 403);
   });
+
+  it("/api/me 豁免资源 scope（身份回吐）：issues:read 最小令牌可过", async () => {
+    const { token } = await createApiToken(user.id, { name: "me-any", scopes: ["issues:read"] });
+    expect((await verifyApiTokenRequest(reqWith("/api/me", token, null)))?.userId).toBe(user.id);
+  });
 });

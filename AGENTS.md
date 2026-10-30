@@ -96,7 +96,7 @@
 
 scope 推导规则：资源 = 路径中**最后命中的白名单资源段**（issues/comments/...，末段不在白名单时回退母资源），动作 = GET/HEAD→read、其余→write；子资源随母资源 scope（states/workspaces→projects，attachments/activities→issues）。例：`POST /api/projects/:pid/issues/:n/comments` → 需要 `comments:write`；`GET /api/projects/:pid/states` → 需要 `projects:read`。
 
-唯一 scope 豁免：`GET /api/meta`（版本协商端点，solo-issue-mcp 启动自检用）不需要资源 scope，任何有效令牌可读；`/api/health`、`/api/locale` 为探活/偏好端点，完全不经令牌体系。
+scope 豁免：`GET /api/meta`（版本协商端点，solo-issue-mcp 启动自检用）与 `GET /api/me`（身份回吐端点，见 §2）不需要资源 scope，任何有效令牌可读；`/api/health`、`/api/locale` 为探活/偏好端点，完全不经令牌体系。
 
 ## 2. 工具清单（按 Agent 视角组织）
 
@@ -117,9 +117,16 @@ GET /api/search?q=<关键词>[&cf.<key>=<value>]
 - 可选值先查 schema（见下）；项目组仅在**完整定义全部过滤键且均为可检索类型**时参与匹配——未定义（或定义成不可检索类型）的项目整组排除，不产模糊命中、不报错；
 - 响应带 `fieldValues` 与 `matchedFieldProjects[].schemaUrl`，可据此跳读定义。
 
+### whoami / list_workspaces —— 身份与工作区发现（会话起点）
+```
+GET /api/me             → { user: { id, name, email, isAdmin }, workspaces: [{ role, workspace: { id, slug, name, projectCount } }] }
+GET /api/workspaces     → 我的工作区列表（role/projectCount；wsSlug 的来源）
+```
+身份归因：Agent 的动作以令牌所属用户记录——@提及、指派、活动审计前先在此对齐「我是谁」；工作区 slug 一律从这两个端点发现，不要假设固定值。
+
 ### discover_context —— 上下文发现（新建/更新前的准备）
 ```
-GET /api/workspaces/main/projects            → 项目列表（含 issue 计数）
+GET /api/workspaces/:wsSlug/projects         → 项目列表（含 issue 计数）
 GET /api/projects/:pid/states                → 状态列表（group ∈ ACTIVE/COMPLETED/CANCELLED，三档结局分类；阶段语义看状态名）
 GET /api/projects/:pid/fields/schema         → 自定义字段自描述 JSON Schema（CF-5）
 GET /api/workspaces/:wsSlug/members          → 成员（assignee 的 userId 来源）
@@ -215,5 +222,5 @@ issue 列表（MCP 工具名 `list_issues`）分页：`page` 1 起、`pageSize` 
 
 - **前置**：`SOLO_ISSUE_URL` 须含部署 basePath（默认 `/solo-issue`，随部署的 `BASE_PATH` 配置）；令牌按 §0 签发（推荐最小 scope + 限期）；多部署 = 多个命名实例
 - **详细文档**：安装/各客户端配置/Windows 变体/多实例/sample 排障，单源于 `packages/mcp/README.md`
-- **版本保障**：包启动自检走 `GET /api/meta`（§1 的唯一 scope 豁免端点）；部署服务端按 `X-Client` 头对低于下限的包直接 426（见 §3）——升级即修复
+- **版本保障**：包启动自检走 `GET /api/meta`（§1 的 scope 豁免端点之一）；部署服务端按 `X-Client` 头对低于下限的包直接 426（见 §3）——升级即修复
 - **发布支持窗口**：每个契约版本对 MCP 包保持 n-2 minor 兼容；破坏性变更的定级与升位口径单源于 [docs/11-mcp-adapter.md](docs/11-mcp-adapter.md) §5
