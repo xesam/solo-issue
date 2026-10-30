@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { CustomFieldDTO } from "@/lib/client/api";
 import { useMembers } from "@/lib/client/api";
 import { fieldOptionColor, formatFieldValue } from "@/components/issues/custom-field-display";
+import IssueRowShareButton from "@/components/issues/IssueRowShareButton";
 
 // U1.4：可排序表头（排序状态存 URL，刷新/分享/后退不丢）
 function SortHead({
@@ -68,6 +69,7 @@ export default function IssueTable({
   issues,
   wsSlug,
   projectSlug,
+  projectName,
   orderBy,
   orderDir,
   onSort,
@@ -80,6 +82,8 @@ export default function IssueTable({
   issues: IssueDTO[];
   wsSlug: string;
   projectSlug: string;
+  /** 摘要里的项目上下文（接收者未必在同一列表页里，分享文本需自带项目名） */
+  projectName: string;
   orderBy?: IssueOrderField;
   orderDir?: "asc" | "desc";
   onSort: (field: IssueOrderField) => void;
@@ -91,6 +95,7 @@ export default function IssueTable({
   customFields?: CustomFieldDTO[];
 }) {
   const t = useTranslations("issues");
+  const tCommon = useTranslations("common");
   const base = `/w/${wsSlug}/p/${projectSlug}/issues`;
   // USER 自定义字段列的姓名解析（成员名单与指派人列同源；查不到回退 id 截断）
   const members = useMembers(wsSlug);
@@ -126,6 +131,10 @@ export default function IssueTable({
                 {f.name}
               </TableHead>
             ))}
+            {/* 行操作列：仅屏幕阅读器可见的表头（视觉留白，行内按钮 hover 浮现） */}
+            <TableHead className="px-2 py-2.5">
+              <span className="sr-only">{tCommon("actions")}</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -133,7 +142,7 @@ export default function IssueTable({
             <TableRow
               key={issue.id}
               className={cn(
-                "border-b border-border/60 last:border-0 hover:bg-muted/40",
+                "group border-b border-border/60 last:border-0 hover:bg-muted/40",
                 selected.has(issue.number) && "bg-muted/50",
               )}
             >
@@ -215,6 +224,18 @@ export default function IssueTable({
                   </TableCell>
                 );
               })}
+              {/* 复制链接+摘要：hover 行浮现（focus-visible 兜底键盘可发现性），复制成功切 Check */}
+              <TableCell className="px-2 py-2.5">
+                <IssueRowShareButton
+                  number={issue.number}
+                  title={issue.title}
+                  stateName={issue.state?.name ?? t("noState")}
+                  projectName={projectName}
+                  wsSlug={wsSlug}
+                  projectSlug={projectSlug}
+                  className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

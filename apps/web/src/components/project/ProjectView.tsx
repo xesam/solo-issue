@@ -312,6 +312,7 @@ function ProjectViewInner({
               issues={issues.data.issues}
               wsSlug={wsSlug}
               projectSlug={projectSlug}
+              projectName={projectName}
               orderBy={filters.orderBy}
               orderDir={filters.orderDir}
               canWrite={canWrite}
