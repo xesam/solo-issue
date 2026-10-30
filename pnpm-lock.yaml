@@ -132,7 +132,11 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@22.20.1)(@vitest/coverage-v8@5.0.5)(vite@8.3.5(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
 
-  packages/agent-mcp-demo: {}
+  packages/agent-mcp-demo:
+    devDependencies:
+      solo-issue-mcp:
+        specifier: ^0.0.1
+        version: 0.0.1
 
   packages/mcp:
     dependencies:
@@ -3122,6 +3126,11 @@ packages:
   side-channel@1.1.1:
     resolution: {integrity: sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==}
     engines: {node: '>= 0.4'}
+
+  solo-issue-mcp@0.0.1:
+    resolution: {integrity: sha512-xMrUYWLoAxBnPaOs0eyVIhux2yZaIpBzYShhDD+BGOxcrHle1qYvdZCC47mfnBygIiAO5k62KxzrAp8YBL0vSA==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   sonner@2.0.8:
     resolution: {integrity: sha512-UM/ByIoFra8yzV75n1o0Puu0bw5U/9UNnDacrJNspekBewIfsQ3D6ez1nvlWpt7aTsO6rujQtifBpycwIivqlg==}
@@ -6249,6 +6258,14 @@ snapshots:
       side-channel-list: 1.0.1
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
+
+  solo-issue-mcp@0.0.1:
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.32.1(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
 
   sonner@2.0.8(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
