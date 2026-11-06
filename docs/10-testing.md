@@ -43,6 +43,9 @@
 | `server/rate-limit.ts` | 窗口语义、清扫分支、`TRUST_PROXY` 下 XFF 采信规则 |
 | `lib/tiptap-text.ts` | 富文本→纯文本派生（列表前缀/提及/图片/换段） |
 | `lib/origin-labels.ts` / `lib/notification-labels.ts` | 内部枚举→人话的 label 映射（07 §6.2 纪律） |
+| `lib/issue-summary.ts` | 摘要派生单源：首行 trim/跳空白行/超长截断（列表/看板/搜索/通知共用） |
+| `lib/env.ts` | `MAX_UPLOAD_MB` 归一与惰性校验 |
+| `i18n/translate.ts` | 服务端翻译链：locale 命中与 key 回退、`{param}` 插值（API 错误出口与 worker 推送共用） |
 | `lib/base-path.ts` / `lib/utils.ts` / `session.ts`(纯函数部分) | basePath 拼接、归并、cookie 项 |
 
 ## 3. 集成测试（apps/web/tests/integration/）
@@ -60,7 +63,7 @@ fixture 纪律（对共享开发库安全的保证）：
 3. **全局护栏类断言**：凡依赖「全库只有 N 个管理员/OWNER」的护栏（`lastActiveAdmin`）不在集成测试造红——共享库有种子管理员；工作区 OWNER 维度的护栏（`lastWorkspaceOwner`）因作用域隔离可测已测
 4. **请求上下文哨兵**：会话/页面上下文（`session-pages.test.ts`）用 `vi.mock("next/headers")` 注入可控 cookie jar、`vi.mock("next/navigation")` 注入哨兵错误断言 `redirect`/`notFound`——真实 DB 行为 + 上下文形状双真
 
-当前覆盖面：Bearer 令牌矩阵（铸造/过期/停用/禁域/scope 不足/429 限流）、权限矩阵（角色 × 项目可见性 × 读/写/管理三级）、issue 全生命周期（序号/状态机/completedAt/活动/通知派生/批量/归档/检索/自定义字段过滤）、评论与时间线合并、通知偏好解析、附件与存储沙箱、管理台服务（建号/改键/停用吊销/角色治理）、个人工作台聚合、密码与会话全流程（bcrypt 散列、防枚举恒时比较的非炸分支——恒时性本身从公开接口不可观测，防退化靠实现注记与 code review）。
+当前覆盖面：Bearer 令牌矩阵（铸造/过期/停用/禁域/scope 不足/429 限流）、权限矩阵（角色 × 项目可见性 × 读/写/管理三级）、issue 全生命周期（序号/状态机/completedAt/活动/通知派生/批量/归档/检索/自定义字段过滤）、评论与时间线合并、通知偏好解析、附件与存储沙箱、管理台服务（建号/改键/停用吊销/角色治理）、个人工作台聚合、密码与会话全流程（bcrypt 散列、防枚举恒时比较的非炸分支——恒时性本身从公开接口不可观测，可锚定的前提「DUMMY 哈希与真实哈希 cost 一致」已由 password 专测钉住）。
 
 ## 4. 端到端（apps/web/e2e/，Playwright）
 
@@ -73,23 +76,24 @@ fixture 纪律（对共享开发库安全的保证）：
 | `issue-state.spec.ts` | 待梳理 → 进行中 → 已完成，时间线逐条落痕 |
 | `comment-mention.spec.ts` | 评论框 @提及（弹层 `role=listbox/option`）→ 跨用户 MENTIONED 通知闭环（描述路径的提及通知走 `issue.ts` 另一分支，暂无 e2e 接线） |
 | `global-search.spec.ts` | ⌘K 检索 → 回车与点击双路径深链 |
+| `issue-send-link.spec.ts` | 列表行「发送」→ 预览框可编辑 → 复制进剪贴板（摘要/状态/绝对深链 + toast 引导） |
 
 运行形态（`playwright.config.ts` 单源）：
 
 - `webServer` 探活 URL 与页面路径分别经 `playwright.config.ts` / `e2e/utils.ts` 的 `appUrl()` 拼接 basePath（默认 `/solo-issue`，随部署的 `BASE_PATH` 走）；`E2E_ROOT`（默认 8081）上已起的服务（dev 或 `pnpm start`）被复用，`pnpm verify` 由 verify-all.sh 先行起服后由此探测就绪
-- 登录身份（企业微信1/2）由 `pnpm verify:seed` 幂等预置（含 WECOM Identity 行，口径见 `apps/web/src/server/im/wecom/mock.ts`），名单与 `apps/web/e2e/utils.ts` 同步维护
+- 登录身份（企业微信1/2）由 `pnpm verify:seed` 幂等预置（含 WECOM Identity 行，口径见 `apps/web/src/server/im/wecom/mock.ts`；企业微信1 兼授 demo 项目 `ADMIN`——UI 删除旅程走 requireProjectAdmin，纯 MEMBER 会 403），名单与 `apps/web/e2e/utils.ts` 同步维护
 - `workers: 1`：单服务单库，旅程串行防串台；`retries: 0`——失败即真失败，不做抖动重试
 - 失败自动留 trace 与截图，报告落 `playwright-report/`（本地留存）
 
 纪律：
 
-1. **数据只碰自己的**：标题带 `E2E-<spec>-<ts>` 唯一前缀，结束后一律 UI 删除清理；spec 内另有 DB 直清 sweep（`apps/web/e2e/fixtures.ts`）在 beforeEach 吸收历史残渣、afterEach 兜失败路径，中断残留由 `apps/web/scripts/ops-cleanup.ts` 人工兜底；不读写种子数据（demo 项目与种子用户仅作容器/登录身份）
+1. **数据只碰自己的**：描述正文首行带 `E2E-<spec>-<ts>` 唯一前缀（同时是列表/看板的摘要判据），结束后一律 UI 删除清理；spec 内另有 DB 直清 sweep（`apps/web/e2e/fixtures.ts`）在 beforeEach 吸收历史残渣、afterEach 兜失败路径，中断残留由 `apps/web/scripts/ops-cleanup.ts` 人工兜底；不读写种子数据（demo 项目与种子用户仅作容器/登录身份）
 2. **选择器 role 优先**：@提及候选弹层与全局搜索结果区实现为 `role="listbox"`/`option`（UI 契约，改动须同步 e2e 断言）；aria-label 全站齐备是选择器库的基础盘
 3. **不追交互长尾**：看板拖拽、弹层键盘全交互等高 flake 面不进矩阵，走人工/走查兜底（走查产物见 `docs/07-ui-guidelines.md` 审计域）
 
 ## 5. 覆盖率面板（vitest.config.ts 单源）
 
-度量范围 = `apps/web/src/lib/**` + `apps/web/src/server/**`，四类面板如实计入分母（不通过排除刷数字）：
+度量范围 = `apps/web/src/lib/**` + `apps/web/src/server/**`，四类测试层不可达的面板整体排除在分母之外（排除的是不可达面，不是用排除刷数字；`auth-im`/`im-send`/`custom-field` 等服务层不属此列——前两者 0% 如实计入，custom-field 由验收脚本背书）：
 
 | 状态 | 面板 | 回执来源 |
 |---|---|---|

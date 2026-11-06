@@ -17,9 +17,11 @@ test("全局搜索：⌘K 检索 → 回车与点击双路径深链", async ({ p
 
   // 前置：造一条可检索数据
   await page.goto(appUrl("/w/main/p/demo/issues/new"));
-  await page.locator('input[placeholder="问题标题"]').fill(title);
+  // 标题已废除：描述正文首行即摘要与检索面
+  await page.locator('[contenteditable="true"]').first().click();
+  await page.keyboard.type(title);
   await page.locator('button:has-text("创建并返回")').click();
-  await page.waitForURL("**/p/demo**", { timeout: 15_000 });
+  await page.waitForURL("**/p/demo", { timeout: 15_000 });
   const row = page.locator("tr", { hasText: title });
   await row.locator("a").first().click();
   await page.waitForURL("**/issues/**", { timeout: 15_000 });

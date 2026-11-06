@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 // 本地账号密码：bcrypt 存储；防枚举的恒时校验
 
 // DUMMY_HASH 是 cost=10 的 bcrypt 哈希——与 hashPassword 的 cost 必须保持一致，
-// 否则"用户不存在"分支与真实分支的耗时曲线漂移，恒时防御静默退化
-const DUMMY_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17LyWy"; // 用于恒时比较
+// 否则"用户不存在"分支与真实分支的耗时曲线漂移，恒时防御静默退化。
+// 导出仅供测试引用该一致性（tests/integration/password.test.ts）；
+// 常量本体仍只表内服务——hash=null 分支的恒时比较在用它
+export const DUMMY_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17LyWy"; // 用于恒时比较
 
 export function hashPassword(plain: string) {
   return bcrypt.hash(plain, 10);

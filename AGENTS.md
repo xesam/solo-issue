@@ -96,7 +96,7 @@
 
 scope 推导规则：资源 = 路径中**最后命中的白名单资源段**（issues/comments/...，末段不在白名单时回退母资源），动作 = GET/HEAD→read、其余→write；子资源随母资源 scope（states/workspaces→projects，attachments/activities→issues）。例：`POST /api/projects/:pid/issues/:n/comments` → 需要 `comments:write`；`GET /api/projects/:pid/states` → 需要 `projects:read`。
 
-唯一 scope 豁免：`GET /api/meta`（版本协商端点，solo-issue-mcp 启动自检用）不需要资源 scope，任何有效令牌可读；`/api/health`、`/api/locale` 为探活/偏好端点，完全不经令牌体系。
+scope 豁免：`GET /api/meta`（版本协商端点，solo-issue-mcp 启动自检用）与 `GET /api/me`（身份回吐端点，见 §2）不需要资源 scope，任何有效令牌可读；`/api/health`、`/api/locale` 为探活/偏好端点，完全不经令牌体系。
 
 ## 2. 工具清单（按 Agent 视角组织）
 
@@ -106,10 +106,10 @@ scope 推导规则：资源 = 路径中**最后命中的白名单资源段**（i
 ```
 GET /api/search?q=<关键词>[&cf.<key>=<value>]
 → { projects: [{ id, name, slug, workspace, url }],
-    issues: [{ ref, number, title, state, fieldValues, project, url }],
+    issues: [{ ref, number, summary, state, fieldValues, project, url }],
     appliedCustomFilters?, matchedFieldProjects?: [{ projectId, schemaUrl }] }
 ```
-跨工作区检索 issue 标题/描述（命中上限 20 条）与**项目名**（上限 5 条，`q` 为空的纯字段检索时项目组为空数组）；`url` 为可直接给用户的深链（根相对路径——issue → 详情页、项目 → 项目页，拼接 `SOLO_ISSUE_URL` 前缀即绝对地址）。
+跨工作区检索 issue 描述正文（命中上限 20 条；`summary` 为描述首行派生的摘要行）与**项目名**（上限 5 条，`q` 为空的纯字段检索时项目组为空数组）；`url` 为可直接给用户的深链（根相对路径——issue → 详情页、项目 → 项目页，拼接 `SOLO_ISSUE_URL` 前缀即绝对地址）。
 
 **CF-5 自定义字段过滤**：`cf.<key>=<value>` 按项目自定义字段过滤 issue（可多个；**同一项目内多字段 AND，字段定义是项目级的——不同项目间命中任一项目的条件即算匹配**）。
 - **可检索类型仅 SELECT**（CF-3c）：单选等值/多选包含；含不可检索类型键的项目不参与匹配（见下条门槛）；
@@ -117,9 +117,16 @@ GET /api/search?q=<关键词>[&cf.<key>=<value>]
 - 可选值先查 schema（见下）；项目组仅在**完整定义全部过滤键且均为可检索类型**时参与匹配——未定义（或定义成不可检索类型）的项目整组排除，不产模糊命中、不报错；
 - 响应带 `fieldValues` 与 `matchedFieldProjects[].schemaUrl`，可据此跳读定义。
 
+### whoami / list_workspaces —— 身份与工作区发现（会话起点）
+```
+GET /api/me             → { user: { id, name, email, isAdmin }, workspaces: [{ role, workspace: { id, slug, name, projectCount } }] }
+GET /api/workspaces     → 我的工作区列表（role/projectCount；wsSlug 的来源）
+```
+身份归因：Agent 的动作以令牌所属用户记录——@提及、指派、活动审计前先在此对齐「我是谁」；工作区 slug 一律从这两个端点发现，不要假设固定值。
+
 ### discover_context —— 上下文发现（新建/更新前的准备）
 ```
-GET /api/workspaces/main/projects            → 项目列表（含 issue 计数）
+GET /api/workspaces/:wsSlug/projects         → 项目列表（含 issue 计数）
 GET /api/projects/:pid/states                → 状态列表（group ∈ ACTIVE/COMPLETED/CANCELLED，三档结局分类；阶段语义看状态名）
 GET /api/projects/:pid/fields/schema         → 自定义字段自描述 JSON Schema（CF-5）
 GET /api/workspaces/:wsSlug/members          → 成员（assignee 的 userId 来源）
@@ -128,21 +135,22 @@ GET /api/workspaces/:wsSlug/members          → 成员（assignee 的 userId �
 **自定义字段（CF-5）**：写 issue 前先读 `/fields/schema`，其 `properties` 即 `fieldValues` 的可写 key 与类型（`required`/`enum` 完整），可直接作为 tool-call 参数的 JSON Schema 校验器：
 ```json
 POST /api/projects/:pid/issues
-{ "title": "...", "fieldValues": { "severity": "s1", "customer": "ACME" } }
+{ "descriptionText": "...", "fieldValues": { "severity": "s1", "customer": "ACME" } }
 ```
 服务端按定义动态校验（类型/枚举/必填/未知 key → 422）；`null` 清空，必填不可清空；变更落 `UPDATED` 活动（`field = custom:<key>`）。
 
 ### create_issue
 ```
 POST /api/projects/:pid/issues
-{ title, descriptionText?, stateId?, assigneeIds?: [userId], fieldValues? }
+{ description | descriptionText, stateId?, assigneeIds?: [userId], fieldValues? }
 → 201 { data: issue }   // data.number 为项目内序号
 ```
+**issue 无标题字段**：正文即 `description`（Tiptap 文档）或 `descriptionText`（纯文本，Agent 直传形态），至少一个非空（缺失/空白 → 422）；列表/搜索/通知的摘要行由描述首个非空行读时派生。
 
 ### update_issue（部分更新，多次调用安全）
 ```
 PATCH /api/projects/:pid/issues/:number
-{ title?, descriptionText?, stateId?, assigneeIds?, fieldValues?, isArchived? }
+{ descriptionText?, stateId?, assigneeIds?, fieldValues?, isArchived? }
 ```
 - 状态变更写 STATE_CHANGED 活动；到达 `group=COMPLETED` 状态自动记 completedAt
 - **通知回路**：指派/@提及/状态变更/评论会自动通知同事（站内 + 企微/IM 渠道），Agent 无需自己发通知
@@ -215,5 +223,5 @@ issue 列表（MCP 工具名 `list_issues`）分页：`page` 1 起、`pageSize` 
 
 - **前置**：`SOLO_ISSUE_URL` 须含部署 basePath（默认 `/solo-issue`，随部署的 `BASE_PATH` 配置）；令牌按 §0 签发（推荐最小 scope + 限期）；多部署 = 多个命名实例
 - **详细文档**：安装/各客户端配置/Windows 变体/多实例/sample 排障，单源于 `packages/mcp/README.md`
-- **版本保障**：包启动自检走 `GET /api/meta`（§1 的唯一 scope 豁免端点）；部署服务端按 `X-Client` 头对低于下限的包直接 426（见 §3）——升级即修复
+- **版本保障**：包启动自检走 `GET /api/meta`（§1 的 scope 豁免端点之一）；部署服务端按 `X-Client` 头对低于下限的包直接 426（见 §3）——升级即修复
 - **发布支持窗口**：每个契约版本对 MCP 包保持 n-2 minor 兼容；破坏性变更的定级与升位口径单源于 [docs/11-mcp-adapter.md](docs/11-mcp-adapter.md) §5

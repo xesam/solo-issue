@@ -4,6 +4,7 @@ import type { State } from "@prisma/client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { IssueDTO, IssueListResult } from "@/lib/dto";
+import { issueSummary } from "@/lib/issue-summary";
 import {
   apiPatch,
   useInvalidateIssue,
@@ -40,7 +41,7 @@ function Card({ issue, link }: { issue: IssueDTO; link: string }) {
       }`}
     >
       <Link href={link} className="block text-sm font-medium transition-colors hover:text-primary">
-        {issue.title}
+        {issueSummary(issue.descriptionText)}
       </Link>
       <div className="mt-2 flex items-center justify-between">
         <span className="font-mono text-xs text-muted-foreground/70">#{issue.number}</span>

@@ -1,9 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { issueSummary } from "@/lib/issue-summary";
 import { customFieldConditions } from "./issue";
 import { crossWorkspaceProjectVisibility } from "@/server/auth/project-visibility";
 
-// 跨工作区全局搜索（F2 / Agent search_everything 单源）：检索 issue 标题/描述 + 项目名。
+// 跨工作区全局搜索（F2 / Agent search_everything 单源）：检索 issue 描述 + 项目名。
 // issue 侧固定上限 20（updatedAt 倒序）、项目侧 5（createdAt 倒序）——均无相关度排序、
 // 无分页，截断口径文档化于 docs/06 §10/§13 与 AGENTS.md search_everything。
 // 自定义字段过滤仅作用于 issue；项目组仅在 q 非空时参与（纯字段检索无关键词可匹配项目名）。
@@ -63,7 +64,7 @@ export interface SearchProjectHit {
 export interface SearchIssueHit {
   id: string;
   number: number;
-  title: string;
+  summary: string;
   fieldValues: Prisma.JsonValue;
   state: { name: string; color: string } | null;
   project: { id: string; name: string; slug: string; workspace: { slug: string } };
@@ -118,7 +119,9 @@ export async function searchEverywhere(
   const fieldGroups = await crossProjectFieldConditions(customFilters, visibleProjectIds);
   // 带字段过滤但没有任何项目完整定义这些 key → 空集（不报错，语义上“无匹配”）
 
-  // 项目名检索：同一可见性公式（含私有项目），归档排除与 issue 侧一致
+  // 项目名检索：同一可见性公式（含私有项目）；归档项目不进项目名组。
+  // issue 侧的归档排除只落在 issue 级 isArchived（下方 where）——归档项目的
+  // 正文命中照常返回，与工作台聚合口径一致（归档是收纳，不是隐藏内容）
   const matchedProjects = q
     ? await prisma.project.findMany({
         where: {
@@ -143,12 +146,7 @@ export async function searchEverywhere(
       project: { workspaceId: { in: workspaceIds }, ...projectVisibility },
       isArchived: false,
       ...(q
-        ? {
-            OR: [
-              { title: { contains: q, mode: "insensitive" } },
-              { descriptionText: { contains: q, mode: "insensitive" } },
-            ],
-          }
+        ? { descriptionText: { contains: q, mode: "insensitive" } }
         : {}),
       ...(fieldFilterApplied
         ? { AND: [{ OR: fieldGroups.length ? fieldGroups : [{ id: "__none__" }] }] }
@@ -159,7 +157,7 @@ export async function searchEverywhere(
     select: {
       id: true,
       number: true,
-      title: true,
+      descriptionText: true,
       fieldValues: true,
       state: { select: { name: true, color: true } },
       project: {
@@ -178,8 +176,10 @@ export async function searchEverywhere(
       ...p,
       url: `/w/${p.workspace.slug}/p/${p.slug}`,
     })),
-    issues: issues.map((i) => ({
+    // descriptionText 只用于派生摘要，不整列外泄（最长 20k，不属于命中面契约）
+    issues: issues.map(({ descriptionText, ...i }) => ({
       ...i,
+      summary: issueSummary(descriptionText),
       ref: `${i.project.slug.toUpperCase()}-${i.number}`,
       url: `/w/${i.project.workspace.slug}/p/${i.project.slug}/issues/${i.number}`,
     })),

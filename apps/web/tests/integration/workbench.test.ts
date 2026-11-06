@@ -41,13 +41,13 @@ beforeAll(async () => {
 
   doneStateId = (await listStates(pub.id)).find((s) => s.group === "COMPLETED")!.id;
 
-  assignedOpen = await createIssue(pub.id, { title: "待我处理", assigneeIds: [me.id] }, by());
-  assignedDone = await createIssue(pub.id, { title: "已完成的指派", assigneeIds: [me.id] }, by());
+  assignedOpen = await createIssue(pub.id, { descriptionText: "待我处理", assigneeIds: [me.id] }, by());
+  assignedDone = await createIssue(pub.id, { descriptionText: "已完成的指派", assigneeIds: [me.id] }, by());
   await updateIssue(pub.id, assignedDone.number, { stateId: doneStateId }, by());
   // createdMine：以 me 为创建者建号（先指派再清掉，让 assigned/created 两个维度正交）
-  createdMine = await createIssue(pub.id, { title: "我创建", assigneeIds: [me.id] }, { id: me.id, name: me.name });
+  createdMine = await createIssue(pub.id, { descriptionText: "我创建", assigneeIds: [me.id] }, { id: me.id, name: me.name });
   await updateIssue(pub.id, createdMine.number, { assigneeIds: [] }, { id: me.id, name: me.name });
-  visiblePrivate = await createIssue(priv.id, { title: "私有项目指派", assigneeIds: [me.id] }, by());
+  visiblePrivate = await createIssue(priv.id, { descriptionText: "私有项目指派", assigneeIds: [me.id] }, by());
 });
 
 afterAll(cleanupFixtures);
@@ -73,7 +73,7 @@ describe("assigned tab", () => {
   });
 
   it("归档的 issue 不进工作台", async () => {
-    const archived = await createIssue(pub.id, { title: "归档走开", assigneeIds: [me.id] }, by());
+    const archived = await createIssue(pub.id, { descriptionText: "归档走开", assigneeIds: [me.id] }, by());
     await updateIssue(pub.id, archived.number, { isArchived: true }, by());
     const r = await getWorkbench(me.id, "assigned");
     expect(r.issues.some((i) => i.id === archived.id)).toBe(false);

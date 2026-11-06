@@ -19,10 +19,14 @@ describe("SDK 端 zod 语义（最小参数集必须可通过校验）", () => {
     expect(() => z.object(byName(searchTools, "search_everything").inputSchema).parse({ q: "x" })).not.toThrow();
   });
 
-  it("create_issue 只需 projectId + title（fieldValues 可缺省——历史缺陷回归）", () => {
+  it("create_issue 只需 projectId + descriptionText（fieldValues 可缺省——历史缺陷回归）", () => {
     expect(() =>
-      z.object(byName(issueTools, "create_issue").inputSchema).parse({ projectId: "p", title: "t" }),
+      z.object(byName(issueTools, "create_issue").inputSchema).parse({ projectId: "p", descriptionText: "d" }),
     ).not.toThrow();
+    // descriptionText 必填：缺正文在 SDK 调用层即拒（正文即 issue，无标题兜底）
+    expect(() =>
+      z.object(byName(issueTools, "create_issue").inputSchema).parse({ projectId: "p" }),
+    ).toThrow();
   });
 
   it("update_issue 除 projectId + number 外全部可缺省", () => {
@@ -31,8 +35,14 @@ describe("SDK 端 zod 语义（最小参数集必须可通过校验）", () => {
     ).not.toThrow();
   });
 
-  it("list_projects 可零参调用（wsSlug 缺省 main）", () => {
-    expect(() => z.object(byName(discoveryTools, "list_projects").inputSchema).parse({})).not.toThrow();
+  it("whoami / list_workspaces 零参可调；list_projects / list_members 的 wsSlug 必填", () => {
+    expect(() => z.object(byName(discoveryTools, "whoami").inputSchema).parse({})).not.toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_workspaces").inputSchema).parse({})).not.toThrow();
+    // wsSlug 必填化：缺参在 SDK 调用层即拒——缺省值会静默遮蔽其余工作区
+    expect(() => z.object(byName(discoveryTools, "list_projects").inputSchema).parse({})).toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_projects").inputSchema).parse({ wsSlug: "main" })).not.toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_members").inputSchema).parse({})).toThrow();
+    expect(() => z.object(byName(discoveryTools, "list_members").inputSchema).parse({ wsSlug: "main" })).not.toThrow();
   });
 
   it("add_comment 的 body 必填（Tiptap 文档）", () => {

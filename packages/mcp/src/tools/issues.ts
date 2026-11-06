@@ -17,7 +17,7 @@ const listShape = {
   projectId,
   stateId: z.string().optional(),
   assigneeId: z.string().optional().describe("按指派人过滤（userId 来自 list_members）"),
-  q: z.string().optional().describe("标题/描述关键词"),
+  q: z.string().optional().describe("描述关键词"),
   archived: z.string().optional().describe("归档筛选，传给服务端原样处理"),
   orderBy: z.enum(["createdAt", "updatedAt"]).optional(),
   orderDir: z.enum(["asc", "desc"]).optional(),
@@ -32,8 +32,10 @@ type DetailArgs = z.infer<z.ZodObject<typeof detailShape>>;
 
 const createShape = {
   projectId,
-  title: z.string().min(1),
-  descriptionText: z.string().optional().describe("富文本描述的纯文本形态（提及会渲染为 @姓名）"),
+  descriptionText: z
+    .string()
+    .min(1)
+    .describe("问题描述正文（首个非空行在列表/搜索/通知中充当摘要）"),
   stateId: z.string().optional().describe("缺省取项目默认状态；显式传入须是 list_states 中的有效值"),
   assigneeIds: z.array(z.string()).optional().describe("指派给哪些成员（userId 来自 list_members）"),
   fieldValues,
@@ -43,8 +45,11 @@ type CreateArgs = z.infer<z.ZodObject<typeof createShape>>;
 const updateShape = {
   projectId,
   number,
-  title: z.string().min(1).optional(),
-  descriptionText: z.string().optional(),
+  descriptionText: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("更新后的描述正文（正文必填，不可清空）"),
   stateId: z.string().optional().describe("变更状态会写活动并通知相关同事；进入 COMPLETED 组自动记 completedAt"),
   assigneeIds: z.array(z.string()).optional(),
   fieldValues,
@@ -87,12 +92,11 @@ export const issueTools: ToolSpec<ListArgs | DetailArgs | CreateArgs | UpdateArg
   {
     name: "create_issue",
     description:
-      "创建 issue（项目内自增序号）。先 get_fields_schema 确认 fieldValues 的 key 与类型、list_members 取 userId。无幂等键：调用失败后先 search_everything 确认未重复创建，再补建。",
+      "创建 issue（项目内自增序号）。descriptionText 为必填正文，首个非空行充当摘要。先 get_fields_schema 确认 fieldValues 的 key 与类型、list_members 取 userId。无幂等键：调用失败后先 search_everything 确认未重复创建，再补建。",
     inputSchema: createShape,
     run: (api, a) => {
       const c = a as CreateArgs;
       return api.post(`/api/projects/${seg(c.projectId)}/issues`, {
-        title: c.title,
         descriptionText: c.descriptionText,
         stateId: c.stateId,
         assigneeIds: c.assigneeIds,
@@ -103,12 +107,11 @@ export const issueTools: ToolSpec<ListArgs | DetailArgs | CreateArgs | UpdateArg
   {
     name: "update_issue",
     description:
-      "部分更新：只传需要变更的字段，未传字段不动，多次调用安全。状态变更/指派/字段变更自动通知相关同事，无需另发通知。",
+      "部分更新：只传需要变更的字段，未传字段不动，多次调用安全。描述正文不可清空（必填）。状态变更/指派/字段变更自动通知相关同事，无需另发通知。",
     inputSchema: updateShape,
     run: (api, a) => {
       const u = a as UpdateArgs;
       return api.patch(`/api/projects/${seg(u.projectId)}/issues/${u.number}`, {
-        title: u.title,
         descriptionText: u.descriptionText,
         stateId: u.stateId,
         assigneeIds: u.assigneeIds,

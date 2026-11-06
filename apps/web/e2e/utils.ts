@@ -44,5 +44,7 @@ export async function deleteIssueViaUi(page: Page, number: number) {
   const dialog = page.locator('[role="dialog"]').last();
   await dialog.locator('input[aria-label*="确认"]').fill(String(number));
   await dialog.getByRole("button", { name: "永久删除" }).click();
-  await page.waitForURL("**/p/demo**", { timeout: 15_000 });
+  // glob 尾段不带 **：`**/p/demo**` 会连 `/issues/<n>` 后缀一并吞掉，删除失败停在
+  // 详情页时当前 URL 已命中 → 空等立即通过，删除成败就失去了唯一门禁
+  await page.waitForURL("**/p/demo", { timeout: 15_000 });
 }

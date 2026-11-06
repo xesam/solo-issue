@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { IssueOrderField } from "@/lib/validations";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Settings2 } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 
 function filtersFromParams(sp: URLSearchParams): IssueFilters {
   const f: IssueFilters = {};
@@ -77,7 +77,7 @@ function ProjectViewInner({
   const sp = useSearchParams();
   const view = sp.get("view") === "board" ? "board" : "list";
   const filters = filtersFromParams(sp);
-  // 页码进 URL（刷新/分享/后退不丢，与排序同原则）；过滤/排序变化时重置回第 1 页。
+  // 页码进 URL（刷新/发送/后退不丢，与排序同原则）；过滤/排序变化时重置回第 1 页。
   // pageSize 不进 URL，由视图模式决定：列表 50 / 看板 500（看板不页码化，单次拉取上限+超限提示）
   const page = Math.max(1, Number(sp.get("page")) || 1);
   const pageSize = view === "board" ? BOARD_PAGE_SIZE : ISSUE_PAGE_SIZE;
@@ -198,7 +198,7 @@ function ProjectViewInner({
             title={t("projectSettings")}
             aria-label={t("projectSettings")}
           >
-            <Settings2 className="size-4" />
+            <Settings className="size-4" />
           </Button>
         }
       >
@@ -312,6 +312,7 @@ function ProjectViewInner({
               issues={issues.data.issues}
               wsSlug={wsSlug}
               projectSlug={projectSlug}
+              projectName={projectName}
               orderBy={filters.orderBy}
               orderDir={filters.orderDir}
               canWrite={canWrite}

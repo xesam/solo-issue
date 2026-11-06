@@ -1,6 +1,6 @@
 {
   "name": "solo-issue",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "packageManager": "pnpm@11.10.0",
   "scripts": {
@@ -19,6 +19,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "add-user": "tsx scripts/ops-add-user.ts",
+    "refresh-state-colors": "tsx scripts/ops-refresh-default-state-colors.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

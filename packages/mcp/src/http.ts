@@ -55,6 +55,8 @@ export class ApiClient {
           : res.statusText || `HTTP ${res.status}`;
       throw new ApiHttpError(res.status, message, res.headers.get("retry-after") ?? undefined);
     }
+    // 200 且响应非 {data} 包络（如网关 HTML 兜底）时落 null：启动自检（contract.ts）
+    // 对此统一分诊；透传层不做二次解释
     return ((json as { data?: T } | null)?.data ?? null) as T;
   }
 }

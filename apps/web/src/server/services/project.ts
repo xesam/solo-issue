@@ -3,10 +3,12 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isWsOwnerRole } from "@/server/auth/project-visibility";
 
-// 新项目自动创建的默认状态（语义分组借鉴 Plane 的验证设计）
+// 新项目自动创建的默认状态（语义分组借鉴 Plane 的验证设计）。
+// 配色：五个状态五个色相（紫/蓝/琥珀/绿/灰，Tailwind 500 档），8px 状态点不借名字也能区分；
+// 改动配色须同步 scripts/verify-seed.ts 副本，存量数据订正走 scripts/ops-refresh-default-state-colors.ts。
 export const DEFAULT_STATES = [
-  { name: "待梳理", color: "#64748b", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
-  { name: "待办", color: "#64748b", sequence: 25000, group: "ACTIVE" as const, isDefault: false },
+  { name: "待梳理", color: "#8b5cf6", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
+  { name: "待办", color: "#3b82f6", sequence: 25000, group: "ACTIVE" as const, isDefault: false },
   { name: "进行中", color: "#f59e0b", sequence: 35000, group: "ACTIVE" as const, isDefault: false },
   { name: "已完成", color: "#22a559", sequence: 45000, group: "COMPLETED" as const, isDefault: false },
   { name: "已取消", color: "#94a3b8", sequence: 55000, group: "CANCELLED" as const, isDefault: false },

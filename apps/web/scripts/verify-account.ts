@@ -1,8 +1,9 @@
 /**
  * 账号与角色 · 端到端验收
- * 前置：① 服务运行中 ② 管理员已设密码（本机可用 scripts/ops-set-password.ts solo-issue@github.com <密码> 完成）
+ * 前置：① 服务运行中 ② 管理员已设密码（本机可用 scripts/ops-set-password.ts <管理员邮箱> <密码> 完成）
  * 运行：pnpm tsx scripts/verify-account.ts <admin密码>
- * 注意：会创建并停用 test.local 测试账号、建/删「机密计划-」私有项目——只应在验收环境运行
+ * 注意：会创建并停用 test.local 测试账号、建/删「机密计划-」私有项目；
+ * 管理员若处于首登待改密态，其密码将被改为本脚本固定值（NEW_PW）——只应在验收环境运行
  */
 
 import "dotenv/config";
@@ -13,6 +14,8 @@ import { check, finish, skip } from "./lib/verify-kit";
 const ROOT = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? "8081"}`;
 const BASE = ROOT.endsWith(BASE_PATH) ? ROOT : `${ROOT}${BASE_PATH}`;
 const WS = "main";
+// 管理员登录键与 prisma/seed 同口径参数化——本地库常用 ADMIN_EMAIL 定制，硬编码占位会 401
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "solo-issue@github.com").trim().toLowerCase();
 
 async function call(
   method: string,
@@ -51,7 +54,7 @@ async function main() {
 
   // ── 1. 密码登录与防枚举 ──
   console.log("[1] 登录与防枚举");
-  const wrong = await login("solo-issue@github.com", "wrong-password-x");
+  const wrong = await login(ADMIN_EMAIL, "wrong-password-x");
   const unknown = await login("nobody@example.com", "whatever-123");
   // 脚本无 cookie → 错误文案按默认 locale（en）出；断言英文事实源文案
   check("错误密码 → 401 且文案统一", wrong.status === 401 && wrong.json?.error === "Incorrect email or password");
@@ -60,10 +63,10 @@ async function main() {
     unknown.status === 401 && unknown.json?.error === "Incorrect email or password",
   );
 
-  const init = await login("solo-issue@github.com", adminInitPw);
+  const init = await login(ADMIN_EMAIL, adminInitPw);
   check("正确密码 → 200", init.status === 200, `(mustChangePassword=${init.json?.data?.user?.mustChangePassword})`);
   const adminCookie = init.cookie!;
-  const adminCookieB = (await login("solo-issue@github.com", adminInitPw)).cookie!; // 第二会话，供吊销断言
+  const adminCookieB = (await login(ADMIN_EMAIL, adminInitPw)).cookie!; // 第二会话，供吊销断言
 
   // ── 2. 首登强制改密 ──
   console.log("\n[2] 强制改密");
@@ -79,18 +82,18 @@ async function main() {
     check("改密吊销其他会话（会话 A → 401）", staleA.status === 401);
     const aliveB = await call("GET", "/api/auth/me", { cookie: adminCookieB });
     check("改密保留当前会话（B 仍有效）", aliveB.status === 200);
-    const relogin = await login("solo-issue@github.com", NEW_PW);
+    const relogin = await login(ADMIN_EMAIL, NEW_PW);
     check("改密后可登录且标记清除", relogin.status === 200 && relogin.json?.data?.user?.mustChangePassword === false);
-    await runRest(adminCookieB, NEW_PW);
+    await runRest(adminCookieB);
   } else {
     skip("强制改密段", "管理员已非待改密状态");
-    await runRest(adminCookie, adminInitPw);
+    await runRest(adminCookie);
   }
 
   finish("verify-account");
 }
 
-async function runRest(adminCookie: string, adminPw: string) {
+async function runRest(adminCookie: string) {
   // ── 3. 管理台与 D1 分离 ──
   console.log("\n[3] 管理台与 D1 分离（超级管理员不穿透业务）");
   const mkSys = await call("POST", "/api/admin/users", {
@@ -163,7 +166,7 @@ async function runRest(adminCookie: string, adminPw: string) {
   check("改邮箱不吊销既有会话", zsOldSession.status === 200);
   const zsDupe = await call("PATCH", `/api/admin/users/${mkUser.json?.data?.id}`, {
     cookie: adminCookie,
-    body: { email: "solo-issue@github.com" },
+    body: { email: ADMIN_EMAIL },
   });
   check("撞既有邮箱 → 422", zsDupe.status === 422);
   const zsClear = await call("PATCH", `/api/admin/users/${mkUser.json?.data?.id}`, {
@@ -184,7 +187,7 @@ async function runRest(adminCookie: string, adminPw: string) {
   // 负向断言的正锚点：先证明「敏感数据确实存在」，否则"不出现"恒真（接口坏了也绿）
   const secret = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: adminCookie,
-    body: { title: "绝密-公开源代码上线 " + Date.now(), descriptionText: "verif-keyword-xyz" },
+    body: { descriptionText: "绝密-公开源代码上线 verif-keyword-xyz " + Date.now() },
   });
   check("私有项目创建含关键词的 issue（泄露断言前提）", secret.status === 201);
 
@@ -211,7 +214,7 @@ async function runRest(adminCookie: string, adminPw: string) {
   check("加入成员后可见", zsSee.status === 200);
   const zsWrite = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: zsCookie,
-    body: { title: "张三在私有项目提交的问题" },
+    body: { descriptionText: "张三在私有项目提交的问题" },
   });
   check("私有项目 MEMBER 可写", zsWrite.status === 201);
 
@@ -222,7 +225,7 @@ async function runRest(adminCookie: string, adminPw: string) {
   });
   const zsGuestWrite = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: zsCookie,
-    body: { title: "不应成功" },
+    body: { descriptionText: "不应成功" },
   });
   check("私有项目 GUEST 只读 → 403", zsGuestWrite.status === 403);
 

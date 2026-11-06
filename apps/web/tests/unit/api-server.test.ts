@@ -64,7 +64,6 @@ describe("handle（统一错误出口）", () => {
     // 留痕收紧：console.error 必须携带异常现场（服务端可核查；客户端响应不透出——
     // 上面那条 not.toContain 才管客户端）。退化成无参 console.error() 时空调用不红——
     // 这里要求至少有一个参数字符串含原始错误信息
-    expect(errSpy).toHaveBeenCalled();
     expect(
       errSpy.mock.calls.some((c) => c.some((arg) => String(arg).includes("prisma"))),
     ).toBe(true);

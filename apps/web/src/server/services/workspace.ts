@@ -12,6 +12,20 @@ export async function listMyWorkspaces(userId: string) {
   });
 }
 
+/** /api/auth/me 与 /api/me 共用的所属工作区摘要（身份回吐 payload 的单一事实源） */
+export async function listMyWorkspaceSummaries(userId: string) {
+  const memberships = await listMyWorkspaces(userId);
+  return memberships.map((m) => ({
+    role: m.role,
+    workspace: {
+      id: m.workspace.id,
+      slug: m.workspace.slug,
+      name: m.workspace.name,
+      projectCount: m.workspace._count.projects,
+    },
+  }));
+}
+
 export async function listWorkspaceMembers(wsSlug: string) {
   const workspace = await prisma.workspace.findUnique({ where: { slug: wsSlug } });
   if (!workspace) throw new HttpError(404, "errors.workspaceNotFound");

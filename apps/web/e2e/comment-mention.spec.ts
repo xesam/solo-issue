@@ -19,9 +19,11 @@ test("评论 @提及 → 跨用户收到 MENTIONED 通知", async ({ page }) => 
 
   // 前置：建一条干净的 issue（走"创建并返回"再进详情页）
   await page.goto(appUrl("/w/main/p/demo/issues/new"));
-  await page.locator('input[placeholder="问题标题"]').fill(title);
+  // 标题已废除：描述正文首行即摘要
+  await page.locator('[contenteditable="true"]').first().click();
+  await page.keyboard.type(title);
   await page.locator('button:has-text("创建并返回")').click();
-  await page.waitForURL("**/p/demo**", { timeout: 15_000 });
+  await page.waitForURL("**/p/demo", { timeout: 15_000 });
   const row = page.locator("tr", { hasText: title });
   await row.locator("a").first().click();
   await page.waitForURL("**/issues/**", { timeout: 15_000 });
@@ -54,7 +56,8 @@ test("评论 @提及 → 跨用户收到 MENTIONED 通知", async ({ page }) => 
   await page.keyboard.type("下班前给个结论");
 
   await page.locator('button:has-text("发送评论")').click();
-  await expect(page.getByText(/走查评论：请评估/).first()).toBeVisible({ timeout: 15_000 });
+  // 锚定时间线 ol 内的条目：全页 getByText 会被编辑器自身已敲的正文满足（发送失败时输入框不清空）
+  await expect(page.locator("ol > li", { hasText: /走查评论：请评估/ }).first()).toBeVisible({ timeout: 15_000 });
 
   // 跨用户收信
   await logout(page);

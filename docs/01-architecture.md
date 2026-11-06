@@ -71,7 +71,7 @@ flowchart LR
 
 ### 4.1 Activity 是唯一事实源
 
-所有 issue 变更（状态、指派、标题、自定义字段、归档、评论）先 diff 成 `activities` 行再落库（append-only，`field = custom:<key>` 标识自定义字段）。审计、通知、AI 上下文、时间线全部从这一张表读，无需额外同步逻辑。数据结构见 [02-data-model.md](02-data-model.md) §3.5。
+所有 issue 变更（状态、指派、描述、自定义字段、归档、评论）先 diff 成 `activities` 行再落库（append-only，`field = custom:<key>` 标识自定义字段）。审计、通知、AI 上下文、时间线全部从这一张表读，无需额外同步逻辑。数据结构见 [02-data-model.md](02-data-model.md) §3.5。
 
 ### 4.2 IM 渠道抽象
 
@@ -118,7 +118,7 @@ flowchart TD
 
 ### 5.2 自定义字段
 
-Issue 固定字段（标题/描述/状态/指派人）之外，**项目可按需扩展字段**，不破坏三条主线（Activity 唯一事实源、REST-first Agent 面、两级权限）。优先级/标签/日期等分类数据由自定义字段承载；存储采用「定义表 + JSONB 值」路线——完整设计（类型注册表/写入链路/过滤/Agent schema）见 [05-custom-fields.md](05-custom-fields.md)。
+Issue 固定字段（描述/状态/指派人）之外，**项目可按需扩展字段**，不破坏三条主线（Activity 唯一事实源、REST-first Agent 面、两级权限）。优先级/标签/日期等分类数据由自定义字段承载；存储采用「定义表 + JSONB 值」路线——完整设计（类型注册表/写入链路/过滤/Agent schema）见 [05-custom-fields.md](05-custom-fields.md)。
 
 ### 5.3 上游借鉴红线
 
@@ -143,7 +143,7 @@ Plane（AGPL-3.0）等开源项目只允许**阅读学习其设计**：可借鉴
 | 单机单体（§1/§3） | 不支持多实例分担负载：登录限流与 API 频控的计数在进程内存（重启清零、实例间不共享），附件在本机磁盘；未做容量压测，承载量无官方数字 |
 | 外部依赖仅 PostgreSQL（§2.1） | 会话校验每次查库；后台任务吞吐随数据库性能走 |
 | Activity 同事务追加（§4.1） | 每次修改多一次写入，记录随使用持续增长；删除 issue 时活动与通知级联删除——需要留史用「归档」，不用「删除」 |
-| 企微为增强项（§4.2） | 接入需公网域名、固定服务器出口 IP 与反向代理（见 [08-deployment.md](08-deployment.md) §4）；推送时问题标题与摘要经企业微信服务器；当前仅企微实现，钉钉/飞书为 schema 预留 |
+| 企微为增强项（§4.2） | 接入需公网域名、固定服务器出口 IP 与反向代理（见 [08-deployment.md](08-deployment.md) §4）；推送时问题摘要（描述首行派生）与深链经企业微信服务器；当前仅企微实现，钉钉/飞书为 schema 预留 |
 | 两级权限（§4.3，完整见 [04-workspace-design.md](04-workspace-design.md)） | 不做单个问题级别的权限（「这个问题只有某几个人能看」）；需要隔离的内容放进私有项目 |
 | 附件本地存储（§3） | 多机不共享；换对象存储只改 `apps/web/src/server/storage.ts` 模块——应用代码中仅该模块直接读写磁盘 |
 

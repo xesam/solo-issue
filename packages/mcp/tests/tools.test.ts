@@ -27,10 +27,9 @@ const run = async (
   ret: { status: number; body: unknown } = { status: 200, body: { data: {} } },
 ) => {
   const { api, fetchImpl } = newApi(ret);
-  const data = await spec.run(api, args as never);
+  await spec.run(api, args as never);
   const call = fetchImpl.mock.calls[0];
   return {
-    data,
     url: String(call?.[0]),
     init: call?.[1] as RequestInit,
   };
@@ -45,9 +44,11 @@ const all = [...discoveryTools, ...searchTools, ...issueTools, ...commentTools] 
 }[];
 
 describe("工具面清单", () => {
-  it("11 个工具全覆盖（与 docs/11-mcp-adapter.md §3.1 一致）", () => {
-    expect(toolNames.sort()).toEqual(
+  it("13 个工具全覆盖（与 docs/11-mcp-adapter.md §3.1 一致）", () => {
+    expect([...toolNames].sort()).toEqual(
       [
+        "whoami",
+        "list_workspaces",
         "list_projects",
         "list_states",
         "list_members",
@@ -65,9 +66,15 @@ describe("工具面清单", () => {
 });
 
 describe("discover 细粒度工具", () => {
-  it("wsSlug 缺省 main；projectId 进路径；wsSlug 做段编码", async () => {
-    expect((await run(byName(discoveryTools, "list_projects"), {})).url).toBe(
-      "http://t/solo-issue/api/workspaces/main/projects",
+  it("whoami/list_workspaces 无参；wsSlug 与 projectId 进路径并做段编码", async () => {
+    expect((await run(byName(discoveryTools, "whoami"), {})).url).toBe(
+      "http://t/solo-issue/api/me",
+    );
+    expect((await run(byName(discoveryTools, "list_workspaces"), {})).url).toBe(
+      "http://t/solo-issue/api/workspaces",
+    );
+    expect((await run(byName(discoveryTools, "list_projects"), { wsSlug: "corp ops" })).url).toBe(
+      "http://t/solo-issue/api/workspaces/corp%20ops/projects",
     );
     expect((await run(byName(discoveryTools, "list_states"), { projectId: "p1" })).url).toBe(
       "http://t/solo-issue/api/projects/p1/states",
@@ -117,15 +124,14 @@ describe("issue 工具", () => {
   it("create_issue：POST body 字段透传", async () => {
     const r = await run(byName(issueTools, "create_issue"), {
       projectId: "p1",
-      title: "t",
+      descriptionText: "d",
       assigneeIds: ["u1"],
       fieldValues: { severity: "s1" },
     });
     expect(r.url).toBe("http://t/solo-issue/api/projects/p1/issues");
     expect(r.init.method).toBe("POST");
     expect(JSON.parse(String(r.init.body))).toEqual({
-      title: "t",
-      descriptionText: undefined,
+      descriptionText: "d",
       stateId: undefined,
       assigneeIds: ["u1"],
       fieldValues: { severity: "s1" },
@@ -141,7 +147,6 @@ describe("issue 工具", () => {
     expect(r.url).toBe("http://t/solo-issue/api/projects/p1/issues/3");
     expect(r.init.method).toBe("PATCH");
     expect(JSON.parse(String(r.init.body))).toEqual({
-      title: undefined,
       descriptionText: undefined,
       stateId: undefined,
       assigneeIds: undefined,
@@ -168,7 +173,7 @@ describe("错误透传（工具层不吞错）", () => {
   it("422 字段明细随 ApiHttpError 冒出，交由注册层转译为 isError 指引", async () => {
     const { api } = newApi({ status: 422, body: { error: "fieldValues.severity: 超出枚举" } });
     await expect(
-      byName(issueTools, "create_issue").run(api, { projectId: "p1", title: "x" } as never),
+      byName(issueTools, "create_issue").run(api, { projectId: "p1", descriptionText: "x" } as never),
     ).rejects.toMatchObject({ status: 422, message: "fieldValues.severity: 超出枚举" });
   });
 

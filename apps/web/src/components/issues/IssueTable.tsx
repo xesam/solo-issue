@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { IssueDTO } from "@/lib/dto";
 import type { IssueOrderField } from "@/lib/validations";
+import { issueSummary } from "@/lib/issue-summary";
 import {
   Avatar,
   StateBadge,
@@ -25,8 +26,9 @@ import { cn } from "@/lib/utils";
 import type { CustomFieldDTO } from "@/lib/client/api";
 import { useMembers } from "@/lib/client/api";
 import { fieldOptionColor, formatFieldValue } from "@/components/issues/custom-field-display";
+import IssueRowSendButton from "@/components/issues/IssueRowSendButton";
 
-// U1.4：可排序表头（排序状态存 URL，刷新/分享/后退不丢）
+// U1.4：可排序表头（排序状态存 URL，刷新/发送/后退不丢）
 function SortHead({
   label,
   field,
@@ -68,6 +70,7 @@ export default function IssueTable({
   issues,
   wsSlug,
   projectSlug,
+  projectName,
   orderBy,
   orderDir,
   onSort,
@@ -80,6 +83,8 @@ export default function IssueTable({
   issues: IssueDTO[];
   wsSlug: string;
   projectSlug: string;
+  /** 摘要里的项目上下文（接收者未必在同一列表页里，发送文本需自带项目名） */
+  projectName: string;
   orderBy?: IssueOrderField;
   orderDir?: "asc" | "desc";
   onSort: (field: IssueOrderField) => void;
@@ -91,6 +96,7 @@ export default function IssueTable({
   customFields?: CustomFieldDTO[];
 }) {
   const t = useTranslations("issues");
+  const tCommon = useTranslations("common");
   const base = `/w/${wsSlug}/p/${projectSlug}/issues`;
   // USER 自定义字段列的姓名解析（成员名单与指派人列同源；查不到回退 id 截断）
   const members = useMembers(wsSlug);
@@ -115,7 +121,7 @@ export default function IssueTable({
               </TableHead>
             )}
             <TableHead className="px-4 py-2.5">{t("number")}</TableHead>
-            <TableHead className="px-4 py-2.5">{t("title")}</TableHead>
+            <TableHead className="px-4 py-2.5">{t("summary")}</TableHead>
             <TableHead className="px-4 py-2.5">{t("state")}</TableHead>
             <TableHead className="px-4 py-2.5">{t("assignees")}</TableHead>
             <TableHead className="px-4 py-2.5">{t("creator")}</TableHead>
@@ -126,6 +132,10 @@ export default function IssueTable({
                 {f.name}
               </TableHead>
             ))}
+            {/* 行操作列：仅屏幕阅读器可见的表头（视觉留白，行内按钮 hover 浮现） */}
+            <TableHead className="px-2 py-2.5">
+              <span className="sr-only">{tCommon("actions")}</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -161,7 +171,7 @@ export default function IssueTable({
                       {t("archived")}
                     </Badge>
                   )}
-                  {issue.title}
+                  {issueSummary(issue.descriptionText) || t("emptySummary")}
                 </Link>
               </TableCell>
               <TableCell className="px-4 py-2.5">
@@ -215,6 +225,18 @@ export default function IssueTable({
                   </TableCell>
                 );
               })}
+              {/* 发送：点击弹预览框审查/修改后再复制 */}
+              <TableCell className="px-2 py-2.5">
+                <IssueRowSendButton
+                  number={issue.number}
+                  summary={issueSummary(issue.descriptionText)}
+                  stateName={issue.state?.name ?? t("noState")}
+                  projectName={projectName}
+                  wsSlug={wsSlug}
+                  projectSlug={projectSlug}
+                  className="size-7 text-muted-foreground hover:text-foreground"
+                />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

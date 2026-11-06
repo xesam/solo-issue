@@ -73,7 +73,7 @@ export async function createComment(
   await prisma.$transaction(async (tx) => {
     const issue = await tx.issue.findUnique({
       where: { projectId_number: { projectId, number } },
-      select: { id: true, title: true, createdById: true, assignees: { select: { userId: true } } },
+      select: { id: true, createdById: true, assignees: { select: { userId: true } } },
     });
     if (!issue) throw new HttpError(404, "errors.issueNotFound");
 

@@ -46,7 +46,7 @@ beforeAll(async () => {
   await addMember(ws.id, guest.id, "GUEST");
   project = await mkProject(ws.id, owner.id);
   const { createIssue } = await import("@/server/services/issue");
-  const issue = await createIssue(project.id, { title: "附件宿主" }, actor());
+  const issue = await createIssue(project.id, { descriptionText: "附件宿主" }, actor());
   issueNumber = issue.number;
 });
 
@@ -55,7 +55,9 @@ const orphanIds: string[] = []; // 无 FK 的附件孤儿行登记簿（级联�
 afterAll(async () => {
   // storage 沙箱是临时目录（每次运行独立 mkdtemp），OS 自清；此处只清 DB fixtures
   if (orphanIds.length) {
-    await prisma.attachment.deleteMany({ where: { id: { in: orphanIds } } }).catch(() => {});
+    await prisma.attachment
+      .deleteMany({ where: { id: { in: orphanIds } } })
+      .catch((e) => console.error("[fixture] 清理附件行失败:", (e as Error).message));
   }
   await cleanupFixtures();
 });
@@ -108,6 +110,7 @@ describe("attachment 服务", () => {
       buffer: Buffer.from("png-bytes"),
     });
     attId = created.id;
+    orphanIds.push(created.id); // 无 FK 级联，纪律：所有行进登记簿（断言先红时 afterAll 仍能兜走）
     expect(created.size).toBe(9);
     expect(created.mimeType).toBe("application/octet-stream"); // 空串兜底
     const { att, buffer } = await readAttachment(attId, member.id);
@@ -159,7 +162,8 @@ describe("attachment 服务", () => {
   it("读取鉴权：非成员 404；访客只读可读但删除 403；成员可删且文件随删", async () => {
     await expectHttpError(readAttachment(attId, outsider.id), 404); // 404 防枚举
     const byGuest = await readAttachment(attId, guest.id);
-    expect(byGuest).toBeTruthy(); // 读对访客开放
+    expect(byGuest.att.id).toBe(attId); // 读对访客开放——锚定身份与内容，不用 truthy 空过
+    expect(byGuest.buffer.toString()).toBe("png-bytes");
     await expectHttpError(removeAttachment(attId, guest.id), 403);
 
     // 删除动作者用普通成员（ws MEMBER 无项目角色）：canWriteWithRoles 的成员分支
@@ -169,7 +173,36 @@ describe("attachment 服务", () => {
     await expectHttpError(readAttachment(attId, member.id), 404);
   });
 
-  it("评论附件归属路径（commentId → issue → project 权限）走查：无宿主附件即 404", async () => {
+  it("评论附件归属路径：commentId → comment → issue → project 解析后按项目权限判定", async () => {
+    // commentId 目前无现役写入方（评论图片路径预留），直插行 + 直插评论走查该解析分支
+    const issue = await prisma.issue.findUnique({
+      where: { projectId_number: { projectId: project.id, number: issueNumber } },
+      select: { id: true },
+    });
+    const comment = await prisma.comment.create({
+      data: { issueId: issue!.id, authorId: owner.id, body: {}, bodyText: "附件宿主评论" },
+    });
+    const key = resolveKey("comment-att", "c.png");
+    await putFile(key, Buffer.from("c"));
+    const onComment = await prisma.attachment.create({
+      data: {
+        issueId: null,
+        commentId: comment.id,
+        uploaderId: owner.id,
+        storageKey: key,
+        filename: "c.png",
+        size: 1,
+        mimeType: "image/png",
+      },
+    });
+    orphanIds.push(onComment.id); // 无 FK 级联，纪律：所有行进登记簿
+    const { att, buffer } = await readAttachment(onComment.id, member.id); // 项目成员可读
+    expect(att.id).toBe(onComment.id);
+    expect(buffer.toString()).toBe("c");
+    await expectHttpError(readAttachment(onComment.id, outsider.id), 404); // 非成员防枚举
+  });
+
+  it("无宿主附件（issueId 与 commentId 均空）即 404——不泄露存在性", async () => {
     const orphan = await prisma.attachment.create({
       data: {
         issueId: null,

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { MIN_MCP_VERSION } from "@/lib/api-contract";
 import { hashToken } from "@/server/auth/hash";
 import { TOKEN_PREFIX, createApiToken, verifyApiTokenRequest } from "@/server/auth/token";
-import { bearerRequest, cleanupFixtures, mkUser, uid } from "./helpers";
+import { bearerRequest, cleanupFixtures, mkUser } from "./helpers";
 
 // R3：Bearer 令牌通道全矩阵（401/403/429 + scope ∩ 角色）
 // 与 AGENTS.md「Agent API 接入」段对齐：断言以状态码为准，不匹配文案原文
@@ -216,5 +216,10 @@ describe("X-Client 版本闸与 /api/meta 豁免（docs/11-mcp-adapter.md §5.2�
     const { token } = await createApiToken(user.id, { name: "meta-any", scopes: ["issues:read"] });
     expect((await verifyApiTokenRequest(reqWith("/api/meta", token, null)))?.userId).toBe(user.id);
     await expectHttpError(verifyApiTokenRequest(reqWith("/api/health", token, null)), 403);
+  });
+
+  it("/api/me 豁免资源 scope（身份回吐）：issues:read 最小令牌可过", async () => {
+    const { token } = await createApiToken(user.id, { name: "me-any", scopes: ["issues:read"] });
+    expect((await verifyApiTokenRequest(reqWith("/api/me", token, null)))?.userId).toBe(user.id);
   });
 });

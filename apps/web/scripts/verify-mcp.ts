@@ -130,12 +130,12 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
 
 const safeClose = (c: Client) => c.close().catch(() => {});
 
-// ── preClean：中断残留幂等清扫（issue 按 title 前缀；级联带走通知/活动/评论）──
+// ── preClean：中断残留幂等清扫（issue 按描述正文前缀；级联带走通知/活动/评论）──
 async function preClean() {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
   try {
-    const issues = await prisma.issue.deleteMany({ where: { title: { startsWith: "[mcp-verify]" } } });
+    const issues = await prisma.issue.deleteMany({ where: { descriptionText: { startsWith: "[mcp-verify]" } } });
     if (issues.count) console.log(`已预清上轮中断残留：issue × ${issues.count}`);
   } finally {
     await prisma.$disconnect();
@@ -155,7 +155,7 @@ async function cleanup(issueId: string | undefined): Promise<boolean> {
       await prisma.$disconnect();
     }
   } catch (e) {
-    console.error("收尾自清理失败（残留请跑 scripts/ops-cleanup.ts）：", e);
+    console.error("收尾自清理失败（残留数据重跑本脚本时由开头 preClean 幂等清扫）：", e);
     return false;
   }
 }
@@ -202,19 +202,27 @@ async function main() {
   console.log("\n[3] 正向矩阵（full 令牌）");
   const m = await spawnMcp(FULL.token);
   const version = m.client.getServerVersion();
-  check("initialize 通过（/api/meta 软闸）且 serverInfo=0.0.1", version?.version === "0.0.1");
+  check("initialize 通过（/api/meta 软闸）且 serverInfo=0.0.2", version?.version === "0.0.2");
 
   const { tools } = await m.client.listTools();
   const names = tools.map((t) => t.name).sort();
   check(
-    "listTools 11/11（与 docs/11-mcp-adapter.md §3.1 同源）",
+    "listTools 13/13（与 docs/11-mcp-adapter.md §3.1 同源）",
     JSON.stringify(names) ===
       JSON.stringify(
-        ["add_comment", "create_issue", "get_fields_schema", "list_issues", "list_members", "list_projects", "list_states", "read_history", "read_issue", "search_everything", "update_issue"],
+        ["add_comment", "create_issue", "get_fields_schema", "list_issues", "list_members", "list_projects", "list_states", "list_workspaces", "read_history", "read_issue", "search_everything", "update_issue", "whoami"],
       ),
   );
 
-  const projects = await callTool(m.client, "list_projects", {});
+  const me = await callTool(m.client, "whoami", {});
+  check("whoami 回显令牌归属用户与工作区",
+    !me.isError && !!me.data?.user?.id && Array.isArray(me.data?.workspaces));
+  const wss = await callTool(m.client, "list_workspaces", {});
+  const wssRow = wss.data?.[0] ?? (wss.data?.data ?? [])[0];
+  const WS = wssRow?.slug;
+  check("list_workspaces 列出工作区（wsSlug 来源）", !wss.isError && typeof WS === "string", `(首个: ${WS})`);
+
+  const projects = await callTool(m.client, "list_projects", { wsSlug: WS });
   const project = (projects.data?.data ?? projects.data ?? []).find((p: any) => p.slug === DEMO_PROJECT);
   check("list_projects 命中演示项目", !projects.isError && !!project, `(${project?.name})`);
   if (!project?.id) {
@@ -227,7 +235,7 @@ async function main() {
   const todo = (states.data?.data ?? states.data ?? []).find((s: any) => s.isDefault);
   check("list_states 含默认状态", !states.isError && !!todo);
 
-  const members = await callTool(m.client, "list_members", {});
+  const members = await callTool(m.client, "list_members", { wsSlug: WS });
   const ww = (members.data?.data ?? members.data ?? []).find((mm: any) => mm.user?.email === "wangwu@example.com");
   check("list_members 命中王五", !members.isError && !!ww);
 
@@ -240,8 +248,7 @@ async function main() {
   const unreadBefore = ((await api("GET", "/api/notifications", { cookie: wangwu })).json?.data?.unreadCount ?? 0) as number;
   const created = await callTool(m.client, "create_issue", {
     projectId: PID,
-    title: "[mcp-verify] MCP 契约矩阵巡检",
-    descriptionText: "M4 验收：本 issue 由 verify-mcp 经工具面创建，随脚本自清理。",
+    descriptionText: "[mcp-verify] MCP 契约矩阵巡检——M4 验收：本 issue 由 verify-mcp 经工具面创建，随脚本自清理。",
     assigneeIds: [ww.user.id],
     stateId: todo.id,
   });
@@ -253,9 +260,9 @@ async function main() {
   const updated = await callTool(m.client, "update_issue", {
     projectId: PID,
     number: num,
-    title: "[mcp-verify] MCP 契约矩阵巡检（已升级）",
+    descriptionText: "[mcp-verify] MCP 契约矩阵巡检（已升级）",
   });
-  check("update_issue 部分更新生效", !updated.isError && String(updated.data?.title).includes("已升级"));
+  check("update_issue 部分更新生效", !updated.isError && String(updated.data?.descriptionText).includes("已升级"));
 
   const commented = await callTool(m.client, "add_comment", {
     projectId: PID,
@@ -307,7 +314,7 @@ async function main() {
   // ── 6. 工具负例矩阵 ──
   console.log("\n[6] 工具负例（403/422/404/429 全走错误转译）");
   const ro = await spawnMcp(RO.token);
-  const roWrite = await callTool(ro.client, "create_issue", { projectId: PID, title: "越权尝试" });
+  const roWrite = await callTool(ro.client, "create_issue", { projectId: PID, descriptionText: "越权尝试" });
   check("只读令牌 create_issue → isError [HTTP 403]", roWrite.isError && roWrite.text.includes("[HTTP 403]"), `(${roWrite.text.slice(0, 60)}…)`);
   const roRead = await callTool(ro.client, "search_everything", { q: "MCP 契约矩阵" });
   check("只读令牌 search_everything 正常（对照组 200）", !roRead.isError);
@@ -315,13 +322,18 @@ async function main() {
 
   const ghost = await callTool(m.client, "create_issue", {
     projectId: PID,
-    title: "x",
+    descriptionText: "x",
     fieldValues: { __mcp_verify_ghost: "非法字段" },
   });
   check("未知字段 key → isError [HTTP 422]（字段明细透传）", ghost.isError && ghost.text.includes("[HTTP 422]"), `(${ghost.text.slice(0, 60)}…)`);
 
   const nf = await callTool(m.client, "read_issue", { projectId: PID, number: 999999999 });
   check("不存在 → isError [HTTP 404]", nf.isError && nf.text.includes("[HTTP 404]"));
+
+  const noSlug = await callTool(m.client, "list_projects", {});
+  check("list_projects 缺 wsSlug → 客户端 schema 校验拒绝（非 HTTP 错误）",
+    noSlug.isError && !noSlug.text.includes("[HTTP"),
+    `(${noSlug.text.slice(0, 60)}…)`);
 
   // 429：先起 MCP（自检先行），再经 REST 灌满频控窗口，随后工具调用必须撞 429
   const ham = await spawnMcp(HAMMER.token);
@@ -334,14 +346,14 @@ async function main() {
     }
   }
   check("REST 侧灌满频控窗口（121 次内出现 429）", saw429);
-  const jammed = await callTool(ham.client, "list_projects", {});
-  check("频控后工具调用 → isError [HTTP 429] + Retry-After",
+  const jammed = await callTool(ham.client, "whoami", {});
+  check("频控后工具调用 → isError [HTTP 429] + Retry-After（豁免端点同样计频控）",
     jammed.isError && jammed.text.includes("[HTTP 429]") && jammed.text.includes("Retry-After"),
     `(${jammed.text.slice(0, 60)}…)`);
   await safeClose(ham.client);
   await safeClose(m.client);
 
-  // ── 7. 426 版本闸（REST 直打，双闸对照——MCP 包自身恒发 0.0.1 不越狱）──
+  // ── 7. 426 版本闸（REST 直打，双闸对照——MCP 包自身恒发 0.0.2 不越狱）──
   console.log("\n[7] 426 版本闸对照");
   const outdated = await fetch(`${BASE}/api/search?q=x`, {
     headers: { authorization: `Bearer ${FULL.token}`, "x-client": "solo-issue-mcp/0.0.0" },
@@ -360,8 +372,8 @@ async function main() {
     if (del.status === 200) revoked += 1;
   }
   check("三枚令牌撤销", revoked === 3);
-  const afterRevoke = await api("GET", `/api/workspaces/main/projects`, { token: FULL.token });
-  check("撤销后旧令牌 → 401", afterRevoke.status === 401);
+  const afterRevoke = await api("GET", "/api/me", { token: FULL.token });
+  check("撤销后旧令牌 → 401（scope 豁免不豁免凭证有效性）", afterRevoke.status === 401);
 
   const cleaned = await cleanup(issueId);
   check("收尾自清理完成（本轮 issue）", cleaned);

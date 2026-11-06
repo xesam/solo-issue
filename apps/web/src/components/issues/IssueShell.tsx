@@ -34,8 +34,9 @@ export default function IssueShell({
   const t = useTranslations("issues");
   return (
     <div className="px-8 py-6">
-      {/* 面包屑：行首显式返回按钮 */}
-      <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+      {/* 面包屑：行首显式返回按钮。mb-6 与编辑器盒拉开——标题废除后首屏元素
+          从无边框文字换成带边框编辑器，导航区与输入区须按区块级留白区隔 */}
+      <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
         <Button
           asChild
           variant="ghost"

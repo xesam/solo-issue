@@ -64,7 +64,7 @@ async function preClean() {
   try {
     const fields = await prisma.customField.deleteMany({ where: { key: "agent_demo_sev" } });
     const issues = await prisma.issue.deleteMany({
-      where: { title: { startsWith: "[agent-demo]" } },
+      where: { descriptionText: { startsWith: "[agent-demo]" } },
     });
     if (fields.count || issues.count)
       console.log(`已预清上轮中断残留：字段 × ${fields.count}、issue × ${issues.count}`);
@@ -104,9 +104,18 @@ async function main() {
   check("令牌以 itr_ 开头且仅此一次返回",
     typeof TOKEN === "string" && TOKEN.startsWith("itr_") && mintedList.status === 200 && !listHasPlaintext);
 
-  // ── 2. Agent 上下文发现：工作区 → 项目 → 状态 → 成员 ──
+  // ── 2. Agent 上下文发现：身份 → 工作区 → 项目 → 状态 → 成员 ──
   console.log("\n[2] 上下文发现（Bearer）");
-  const projects = await api("GET", `/api/workspaces/main/projects`, { token: TOKEN });
+  const me = await api("GET", "/api/me", { token: TOKEN });
+  check("whoami：身份回显（scope 豁免端点）",
+    me.status === 200 && !!me.json?.data?.user?.id,
+    `(${me.json?.data?.user?.name ?? "?"})`);
+  const meSession = await api("GET", "/api/me", { cookie: admin });
+  check("会话通道同样可达 /api/me（双通道对照）", meSession.status === 200 && !!meSession.json?.data?.user);
+  const wss = await api("GET", "/api/workspaces", { token: TOKEN });
+  const WS = (wss.json?.data ?? [])[0]?.slug;
+  check("列出我的工作区（wsSlug 来源）", wss.status === 200 && typeof WS === "string", `(首个: ${WS})`);
+  const projects = await api("GET", `/api/workspaces/${WS}/projects`, { token: TOKEN });
   check("列出项目", projects.status === 200);
   const project = projects.json?.data?.find((p: any) => p.slug === DEMO_PROJECT);
   check("找到演示项目", !!project, `(${project?.name})`);
@@ -116,7 +125,7 @@ async function main() {
   const todo = (states.json?.data ?? []).find((s: any) => s.isDefault);
   check("列出状态（须含默认状态）", states.status === 200 && !!todo, `(默认状态 id: ${todo?.id?.slice(-6)})`);
 
-  const members = await api("GET", "/api/workspaces/main/members", { token: TOKEN });
+  const members = await api("GET", `/api/workspaces/${WS}/members`, { token: TOKEN });
   const ww = members.json?.data?.find((m: any) => m.user.email === "wangwu@example.com");
   check("列出成员（200 找到王五）", members.status === 200 && !!ww, `(王五 id: ${ww?.user.id?.slice(-6)})`);
 
@@ -127,8 +136,7 @@ async function main() {
   const created = await api("POST", `/api/projects/${PID}/issues`, {
     token: TOKEN,
     body: {
-      title: "[agent-demo] 定时备份任务失败",
-      descriptionText: "Agent 巡检发现备份作业连续 2 天未产出快照。",
+      descriptionText: "[agent-demo] 定时备份任务失败——Agent 巡检发现备份作业连续 2 天未产出快照。",
       assigneeIds: [ww.user.id],
       stateId: todo.id,
     },
@@ -142,9 +150,9 @@ async function main() {
   // ── 4. Agent 更新 + 评论（@王五 → 走 M4 通知回路）──
   const updated = await api("PATCH", `/api/projects/${PID}/issues/${num}`, {
     token: TOKEN,
-    body: { title: "[agent-demo] 定时备份任务失败（已升级）" },
+    body: { descriptionText: "[agent-demo] 定时备份任务失败（已升级）" },
   });
-  check("更新 issue", updated.status === 200 && updated.json?.data?.title?.includes("已升级"));
+  check("更新 issue", updated.status === 200 && updated.json?.data?.descriptionText?.includes("已升级"));
 
   const comment = await api("POST", `/api/projects/${PID}/issues/${num}/comments`, {
     token: TOKEN,
@@ -278,7 +286,7 @@ async function main() {
   check("只读令牌可读 issue", roRead.status === 200);
   const roWrite = await api("POST", `/api/projects/${PID}/issues`, {
     token: RO_TOKEN,
-    body: { title: "越权尝试" },
+    body: { descriptionText: "越权尝试" },
   });
   check("只读令牌写 issue → 403", roWrite.status === 403);
 
@@ -287,6 +295,8 @@ async function main() {
 
   const noAuth = await api("GET", `/api/projects/${PID}/issues`);
   check("无凭证 → 401", noAuth.status === 401);
+  const noAuthMe = await api("GET", "/api/me");
+  check("无凭证访问 /api/me → 401", noAuthMe.status === 401);
 
   const searchNoScope = await api("GET", "/api/search?q=x", { token: RO_TOKEN });
   check("缺 search:read 的令牌调搜索 → 403", searchNoScope.status === 403);
@@ -299,7 +309,11 @@ async function main() {
   const DISCOVER_TOKEN = mint3.json?.data?.token;
   const readStates = await api("GET", `/api/projects/${PID}/states`, { token: DISCOVER_TOKEN });
   check("projects:read 令牌可列状态（随项目 scope）", readStates.status === 200);
-  const readMembers = await api("GET", `/api/workspaces/main/members`, { token: DISCOVER_TOKEN });
+  const readMe = await api("GET", "/api/me", { token: DISCOVER_TOKEN });
+  check("projects:read 令牌可读身份（/api/me 为 scope 豁免端点）", readMe.status === 200 && !!readMe.json?.data?.user);
+  const readWss = await api("GET", "/api/workspaces", { token: DISCOVER_TOKEN });
+  check("projects:read 令牌可列我的工作区（workspaces→projects 推导）", readWss.status === 200);
+  const readMembers = await api("GET", `/api/workspaces/${WS}/members`, { token: DISCOVER_TOKEN });
   check("projects:read 令牌可列工作区成员（随项目 scope）", readMembers.status === 200);
   const listIssues403 = await api("GET", `/api/projects/${PID}/issues`, { token: DISCOVER_TOKEN });
   check("projects:read 令牌列 issue → 403（缺 issues:read）", listIssues403.status === 403);
@@ -309,7 +323,8 @@ async function main() {
   // ── 9. 收尾：撤销令牌 ──
   console.log("\n[9] 令牌生命周期");
   const listTokens = await api("GET", "/api/api-tokens", { cookie: admin });
-  check("列表不含令牌明文", JSON.stringify(listTokens.json).indexOf("itr_") === -1);
+  // 先锚列表可达（200）：接口 500 时 json 为 null，indexOf 恒 -1，空断言会静默绿
+  check("令牌列表可达且不含令牌明文", listTokens.status === 200 && JSON.stringify(listTokens.json).indexOf("itr_") === -1);
   // 只撤销本脚本铸的三枚令牌——删除管理员名下全部令牌会误伤真实运维凭证
   const mintedIds = [mint, mint2, mint3]
     .map((m) => ((m as any).json?.data?.id) as string | undefined)
@@ -323,8 +338,9 @@ async function main() {
   check("撤销后旧令牌 → 401", revoked.status === 401);
 
   // ── 10. 收尾自清理 ──
-  // issue 无删除 API，直连 Prisma 硬删本轮演示数据（issue + 演示字段）。
-  // 清理成败计入断言（自删是承诺项）；历史残留的兜底清扫在 scripts/ops-cleanup.ts
+  // 直连 Prisma 硬删本轮演示数据（issue + 演示字段）：清理属脚本自身职责，
+  // 级联带走活动/通知；本轮未传附件，无孤儿文件面。
+  // 清理成败计入断言（自删是承诺项）；中断残留由脚本开头的 preClean 幂等清扫
   const cleaned = await cleanup(createdIssueId);
   check("收尾自清理完成（本轮 issue 与演示字段）", cleaned);
 
@@ -346,7 +362,7 @@ async function cleanup(issueId: string | undefined): Promise<boolean> {
       await prisma.$disconnect();
     }
   } catch (e) {
-    console.error("收尾自清理失败（残留需手工清理或跑 scripts/ops-cleanup.ts）：", e);
+    console.error("收尾自清理失败（残留数据重跑本脚本时由开头 preClean 幂等清扫）：", e);
     return false;
   }
 }

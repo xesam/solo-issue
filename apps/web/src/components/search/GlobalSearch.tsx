@@ -33,7 +33,7 @@ type SearchProject = {
 type SearchIssue = {
   id: string;
   number: number;
-  title: string;
+  summary: string;
   state: { name: string; color: string } | null;
   project: { name: string; slug: string; workspace: { slug: string } };
   // API 直接给出目标地址
@@ -150,7 +150,7 @@ export default function GlobalSearch() {
             <span className="w-24 shrink-0 truncate font-mono text-xs text-muted-foreground">
               {i.project.slug.toUpperCase()}-{i.number}
             </span>
-            <span className="min-w-0 flex-1 truncate text-sm">{i.title}</span>
+            <span className="min-w-0 flex-1 truncate text-sm">{i.summary}</span>
             <StateBadge state={i.state} />
           </>
         ),

@@ -87,7 +87,7 @@ export default function MemberCombobox({
           disabled={disabled}
           className={cn(
             "min-w-0 justify-between bg-white font-normal dark:bg-input/30",
-            staging ? "h-auto min-h-8 w-full items-start py-1" : "h-9 w-full",
+            staging ? "h-auto min-h-9 w-full items-start py-1.5" : "h-9 w-full",
             !chosen.length && "text-muted-foreground",
             className,
           )}
@@ -108,7 +108,8 @@ export default function MemberCombobox({
                      tabIndex={disabled ? -1 : 0}
                      aria-label={t("removeMember", { name: m.user.name })}
                     className={cn(
-                      "cursor-pointer rounded-full text-muted-foreground/60 hover:text-foreground",
+                      // 光标走 globals.css 对 [role="button"] 的全局规则，不散写 cursor-pointer
+                      "rounded-full text-muted-foreground/60 hover:text-foreground",
                       disabled && "pointer-events-none opacity-40",
                     )}
                     onClick={(e) => {
@@ -138,7 +139,13 @@ export default function MemberCombobox({
               </span>
             )}
           </span>
-          <ChevronsUpDown className="ml-1 size-3.5 shrink-0 text-muted-foreground/60" />
+          <ChevronsUpDown
+            className={cn(
+              "ml-1 size-3.5 shrink-0 text-muted-foreground/60",
+              // items-start 会把箭头钉进右上角（贴边感根源），mt-0.5 让它与首行光学居中；field 走 items-center 不加
+              staging && "mt-0.5",
+            )}
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">

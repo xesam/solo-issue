@@ -4,7 +4,7 @@
 
 ## 1. 现象
 
-在列表页批量修改状态或指派人（`POST /api/projects/:projectId/issues/batch`，单次最多 100 条，见 `apps/web/src/lib/validations.ts:288`）时，每个 issue 各自触发一轮通知。同一个人如果是这批 issue 的指派人或创建人，会在企业微信里连续收到与 issue 数量相同的应用消息。
+在列表页批量修改状态或指派人（`POST /api/projects/:projectId/issues/batch`，单次最多 100 条，见 `apps/web/src/lib/validations.ts:325`）时，每个 issue 各自触发一轮通知。同一个人如果是这批 issue 的指派人或创建人，会在企业微信里连续收到与 issue 数量相同的应用消息。
 
 ## 2. 根因
 
@@ -27,8 +27,8 @@ sequenceDiagram
   end
 ```
 
-- `batchUpdateIssues`（`apps/web/src/server/services/issue.ts:655`）逐条调用 `updateIssue`，每条独立事务，部分失败不影响已成功项。
-- `updateIssue` 在事务提交后调用 `dispatchIm(notificationIds)`（`issue.ts:621`），每个 issue 入队一个 IM 推送任务（`apps/web/src/server/services/notification.ts:170`）。
+- `batchUpdateIssues`（`apps/web/src/server/services/issue.ts:644`）逐条调用 `updateIssue`，每条独立事务，部分失败不影响已成功项。
+- `updateIssue` 在事务提交后调用 `dispatchIm(notificationIds)`（`issue.ts:610`），每个 issue 入队一个 IM 推送任务（`apps/web/src/server/services/notification.ts:170`）。
 - worker 的 `processImSend`（`apps/web/src/server/services/im-send.ts:13`）对任务内每条通知调用一次 `channel.sendToUser`（`im-send.ts:57`），不按接收人合并。
 - 推送策略在 `docs/01-architecture.md` §4.4 定为"即时发送，不做攒批"。这对单条编辑合理，但批量路径没有区别处理。
 

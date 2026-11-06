@@ -1,5 +1,6 @@
 // 统一错误转译：REST 状态码 → MCP tool result（isError + 人话指引）。
-// 指引语义与根目录 AGENTS.md §3「错误与重试」逐条一致，断言以状态码为准
+// 指引语义对齐根目录 AGENTS.md §3「错误与重试」的分诊方向（400/409/413/415 未单列，
+// 落「请求失败」兜底），断言以状态码为准
 
 export class ApiHttpError extends Error {
   constructor(

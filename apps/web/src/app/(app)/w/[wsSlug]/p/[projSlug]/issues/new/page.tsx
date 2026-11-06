@@ -3,7 +3,7 @@ import CreateIssuePage from "@/components/issues/CreateIssuePage";
 
 export const dynamic = "force-dynamic";
 
-// 创建问题（页面模式）：独立 URL，可刷新/分享
+// 创建问题（页面模式）：独立 URL，可刷新/发送
 export default async function NewIssuePage({
   params,
 }: {

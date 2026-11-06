@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { HttpError } from "@/lib/api";
 import {
   adminCreateUser,
   adminCreateWorkspace,

@@ -43,6 +43,12 @@ export async function runSelfCheck(fetchMeta: () => Promise<MetaInfo>): Promise<
       `无法连接 solo-issue 服务（${e instanceof Error ? e.message : String(e)}）：检查 SOLO_ISSUE_URL 是否指向运行中的部署、须含 basePath（如 /solo-issue）`,
     );
   }
+  // fetchMeta 对「200 但非 {data} 包络」的响应（网关 HTML 兜底等）产出 null——
+  // 不放任它以裸 TypeError 逃出分诊（掩盖真实病因：URL 错配），统一进人话指引
+  if (!meta)
+    throw new SelfCheckError(
+      "服务端响应不是预期的 {data} 包络：检查 SOLO_ISSUE_URL 是否指向运行中的部署、须含 basePath（如 /solo-issue）",
+    );
   if (!(SUPPORTED_CONTRACTS as readonly number[]).includes(meta.apiContractVersion))
     throw new SelfCheckError(
       `服务端契约版本 v${meta.apiContractVersion} 不在本包支持范围（${SUPPORTED_CONTRACTS.join("/")}）：请升级 solo-issue-mcp（npx -y solo-issue-mcp@latest）或核对部署版本`,

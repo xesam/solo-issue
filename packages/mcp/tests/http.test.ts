@@ -33,7 +33,7 @@ describe("ApiClient（纯透传层）", () => {
       seen = { url: String(url), init };
       return jsonRes(429, { error: "too many" }, { "retry-after": "37" });
     });
-    await expect(api.post("/api/projects/p1/issues", { title: "x" })).rejects.toSatisfy(
+    await expect(api.post("/api/projects/p1/issues", { descriptionText: "x" })).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ApiHttpError &&
         e.status === 429 &&
@@ -42,7 +42,7 @@ describe("ApiClient（纯透传层）", () => {
     );
     const headers = seen.init!.headers as Record<string, string>;
     expect(headers["content-type"]).toBe("application/json");
-    expect(String(seen.init!.body)).toBe(JSON.stringify({ title: "x" }));
+    expect(String(seen.init!.body)).toBe(JSON.stringify({ descriptionText: "x" }));
   });
 
   it("PATCH 通道与 GET 同一套剥壳语义（工具面无 DELETE 动词）", async () => {

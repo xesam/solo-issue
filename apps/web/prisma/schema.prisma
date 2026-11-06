@@ -240,8 +240,7 @@ model Issue {
   id              String    @id @default(cuid())
   projectId       String
   number          Int // 项目内序号，展示为 PROJ-123
-  title           String
-  description     Json? // Tiptap 文档
+  description     Json? // Tiptap 文档（issue 正文；列表/搜索/通知的摘要由 descriptionText 首个非空行派生，见 lib/issue-summary）
   descriptionText String? // 派生纯文本：搜索/IM摘要/AI
   stateId         String?
   parentId        String?

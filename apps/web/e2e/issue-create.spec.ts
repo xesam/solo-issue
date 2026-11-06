@@ -19,20 +19,22 @@ test("创建 issue：空值置灰 → 提交 → 列表/看板可见 → 删除�
   await expect(page.getByRole("link", { name: "演示项目" })).toBeVisible();
 
   await page.locator('button:has-text("创建问题")').click();
-  await page.waitForURL("**/issues/new**", { timeout: 15_000 });
+  await page.waitForURL("**/issues/new", { timeout: 15_000 });
 
   // 空值置灰（客户端第一闸；服务端 zod 第二闸由 vitest/验收脚本背书）
   const createBtn = page.locator('button:has-text("创建"):not(:has-text("返回"))');
   await expect(createBtn).toBeDisabled();
 
-  await page.locator('input[placeholder="问题标题"]').fill(title);
-  await expect(createBtn).toBeEnabled();
-
+  // 描述即正文：首行会派生为列表/看板摘要，标记写进首行
   await page.locator('[contenteditable="true"]').first().click();
+  await page.keyboard.type(title);
+  await expect(createBtn).toBeEnabled();
+  await page.keyboard.press("Enter");
   await page.keyboard.type("从 e2e 创建：验证描述派生纯文本。");
   await page.locator('button:has-text("创建并返回")').click();
 
-  await page.waitForURL("**/p/demo**", { timeout: 15_000 });
+  // 同 utils.ts deleteIssueViaUi：glob 尾段不带 **，否则 /issues/new 后缀被吞、空等即过
+  await page.waitForURL("**/p/demo", { timeout: 15_000 });
   const row = page.locator("tr", { hasText: title });
   await expect(row).toBeVisible();
   await expect(page.getByText(/问题已创建 #\d+/)).toBeVisible();
@@ -50,5 +52,8 @@ test("创建 issue：空值置灰 → 提交 → 列表/看板可见 → 删除�
   await page.waitForURL("**/issues/**", { timeout: 15_000 });
   const number = Number(page.url().match(/issues\/(\d+)/)?.[1]);
   await deleteIssueViaUi(page, number);
-  await page.locator("tr").filter({ hasText: title }).waitFor({ state: "detached", timeout: 15_000 });
+  // 删除失败会停在详情页 → deleteIssueViaUi 内的 waitForURL("**/p/demo") 已超时红；
+  // 此处钉列表页的行确已消失（删除成功但列表未刷新的退化在此红）。
+  // 不能用 detached 等待：详情页本就没有 tr，0 匹配时 detached 恒立即满足
+  await expect(row).toHaveCount(0);
 });

@@ -224,7 +224,7 @@ export function useImportCustomFields(projectId: string) {
   });
 }
 
-// 页码式分页。page 进 URL（刷新/分享/后退不丢，与排序同原则）；
+// 页码式分页。page 进 URL（刷新/发送/后退不丢，与排序同原则）；
 // pageSize 不进 URL，由视图模式决定（列表 50 / 看板 500）
 export function useIssues(
   projectId: string,

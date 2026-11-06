@@ -44,6 +44,7 @@ export default function RichEditor({
   onUploadImage,
   className,
   minH,
+  autoFocus,
 }: {
   doc?: JSONContent | null;
   onUpdate?: (doc: JSONContent) => void;
@@ -53,6 +54,8 @@ export default function RichEditor({
   onUploadImage?: (file: File) => Promise<string>;
   className?: string;
   minH?: string;
+  /** 挂载即聚焦正文（创建页：落地直接开写）；评论编辑器不传 */
+  autoFocus?: boolean;
 }) {
   const membersRef = useRef<MentionItem[]>(members ?? []);
   membersRef.current = members ?? [];
@@ -65,6 +68,7 @@ export default function RichEditor({
 
   const editor = useEditor({
     immediatelyRender: false,
+    autofocus: autoFocus ? "start" : false,
     extensions: [
       StarterKit,
       Link.configure({ openOnClick: false, autolink: true }),

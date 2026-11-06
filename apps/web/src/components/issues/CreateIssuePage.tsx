@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { docToText } from "@/lib/tiptap-text";
 import {
   apiPost,
   apiUpload,
@@ -39,7 +40,6 @@ export default function CreateIssuePage({
   const t = useTranslations("issues");
   const tCommon = useTranslations("common");
   const [values, setValues] = useState<IssueFormValues>({
-    title: "",
     descDoc: null,
     stateId: "",
     assigneeIds: [],
@@ -68,13 +68,16 @@ export default function CreateIssuePage({
     setValues((prev) => ({ ...prev, ...patch }));
   }
 
+  // 正文必填闸（与服务端 zod 同源判据 docToText）：空描述禁提交——
+  // 必填字段禁静默兜底，客户端置灰 + 服务端 422 双闸
+  const hasContent = !!values.descDoc && docToText(values.descDoc).trim().length > 0;
+
   const dirty =
-    !!values.title.trim() ||
+    hasContent ||
     values.assigneeIds.length > 0 ||
     Object.keys(values.fieldValues).length > 0 ||
     values.stagedFiles.length > 0 ||
-    (!!values.stateId && values.stateId !== defaultStateId) ||
-    !!values.descDoc?.content?.length;
+    (!!values.stateId && values.stateId !== defaultStateId);
 
   // 脏状态守卫：刷新/关闭前提醒
   useEffect(() => {
@@ -90,13 +93,12 @@ export default function CreateIssuePage({
   async function doCreate(andBack = false) {
     // 与提交按钮同闸（statesLoading：状态下拉未就绪时 stateId 归一化依赖它，
     // 快捷键/回车等旁路不能绕过置灰条件）
-    if (!values.title.trim() || saving || statesLoading) return;
+    if (!hasContent || saving || statesLoading) return;
     setSaving(true);
     setError(null);
     try {
-      const { title, descDoc, stateId, assigneeIds, fieldValues, stagedFiles } = values;
+      const { descDoc, stateId, assigneeIds, fieldValues, stagedFiles } = values;
       const created = await apiPost<{ number: number }>(`/api/projects/${projectId}/issues`, {
-        title,
         description: descDoc ?? undefined,
         ...(stateId ? { stateId } : {}),
         assigneeIds,
@@ -149,12 +151,12 @@ export default function CreateIssuePage({
             members={members}
             customFields={customFields.data}
             descPlaceholder={t("descPlaceholderNew")}
-            titleAutofocus
+            descAutofocus
             error={error}
             onSubmit={doCreate}
             primary={
               <>
-                <Button type="submit" disabled={saving || statesLoading || !values.title.trim()}>
+                <Button type="submit" disabled={saving || statesLoading || !hasContent}>
                   {saving ? tCommon("creating") : (
                     <>
                       {tCommon("create")}
@@ -166,7 +168,7 @@ export default function CreateIssuePage({
                   type="button"
                   variant="outline"
                   onClick={() => void doCreate(true)}
-                  disabled={saving || statesLoading || !values.title.trim()}
+                  disabled={saving || statesLoading || !hasContent}
                 >
                   {t("createAndBack")}
                 </Button>

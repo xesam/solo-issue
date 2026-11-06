@@ -10,7 +10,7 @@ const filtersShape = z
   .optional()
   .describe("自定义字段等值过滤 { key: value }——key 必须是项目已定义的可检索字段，先 get_fields_schema；与 q 至少其一，都缺则 422");
 
-const shape = { q: z.string().optional().describe("标题/描述关键词"), filters: filtersShape };
+const shape = { q: z.string().optional().describe("描述关键词"), filters: filtersShape };
 type Args = z.infer<z.ZodObject<typeof shape>>;
 
 export const searchTools: ToolSpec<Args>[] = [

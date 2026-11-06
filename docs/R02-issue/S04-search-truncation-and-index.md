@@ -1,14 +1,15 @@
-# S04 全局搜索静默截断，标题与描述无检索索引
+# S04 全局搜索静默截断，描述正文无检索索引
 
 > 状态：待处理（不阻塞 0.0.1 内测）｜严重度：低｜记录日期：2026-10-23
 > 2026-10-23 进展：§2.2 注释失实已修正；docs/06 §10/§13 与 `AGENTS.md` §2 已将「固定上限 20 条、`updatedAt` 倒序、无分页」写为显式口径。§3.1 的 `hasMore` 响应扩展（含契约定级与 mcp 工具描述同步）仍待实施，§2.3 索引维持原状。
+> 2026-11-06：issue 标题字段废除（正文即唯一检索面）后，现象段与索引示例中指向 `issues.title` 的引用已随终态更新。
 
 ## 1. 现象
 
-`GET /api/search`（`apps/web/src/app/api/search/route.ts`）：
+`GET /api/search`（检索实现在 `apps/web/src/server/services/search.ts`）：
 
-- 标题和描述用 `contains` + `mode: "insensitive"` 匹配（`:103-104`），对应 SQL 的 `ILIKE '%关键词%'`；
-- 按 `updatedAt` 倒序取前 20 条（`:112-113`），响应里没有总数，也没有"是否还有更多"的标记。
+- 描述正文用 `contains` + `mode: "insensitive"` 匹配（`search.ts:149`），对应 SQL 的 `ILIKE '%关键词%'`；
+- 按 `updatedAt` 倒序取前 20 条（`search.ts:155-156`），响应里没有总数，也没有"是否还有更多"的标记。
 
 ## 2. 问题
 
@@ -22,7 +23,7 @@
 
 ### 2.3 无检索索引
 
-迁移里只有 `fieldValues` 整列 GIN 索引（由 schema `@@index([fieldValues], type: Gin)` 表达、随基线迁移生成），`issues.title` 和 `issues.descriptionText` 没有索引。`ILIKE '%…%'` 用不上 B-tree 索引，每次搜索都会对可见项目内的 issue 做顺序扫描。项目内列表的 `q` 参数（`apps/web/src/server/services/issue.ts:121-122`）也一样。内测数据量下没有影响，数据量增长后再处理。
+迁移里只有 `fieldValues` 整列 GIN 索引（由 schema `@@index([fieldValues], type: Gin)` 表达、随基线迁移生成），`issues.descriptionText` 没有索引（标题列已随标题字段废除移除）。`ILIKE '%…%'` 用不上 B-tree 索引，每次搜索都会对可见项目内的 issue 做顺序扫描。项目内列表的 `q` 参数（`apps/web/src/server/services/issue.ts:119-121`）也一样。内测数据量下没有影响，数据量增长后再处理。
 
 ## 3. 处理方案
 
@@ -36,7 +37,6 @@
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS "issues_title_trgm" ON "issues" USING GIN ("title" gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS "issues_descriptionText_trgm" ON "issues" USING GIN ("descriptionText" gin_trgm_ops);
 ```
 

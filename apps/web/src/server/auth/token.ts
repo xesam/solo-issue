@@ -11,7 +11,7 @@ import { hashToken } from "@/server/auth/hash";
 // - token 形如 itr_xxx，仅创建时可见；库里只存 SHA-256
 // - scope = `<resource>:<read|write>`，或 "*"（全部）；**不含任何白名单资源段**的
 //   路径一律 403（默认拒绝——注意不是"白名单外的路径"：/api/projects/** 下未登记的
-//   子路径会按 projects 段推导，这是语义而非漏洞，views 即此例；唯一豁免见 SCOPE_EXEMPT_PATHS）
+//   子路径会按 projects 段推导，这是语义而非漏洞，views 即此例；豁免例外见 SCOPE_EXEMPT_PATHS）
 // - 认证/令牌管理/模拟/治理/个人视图通道是 Bearer 禁区（见 BEARER_FORBIDDEN）
 // - 内存频控 120 次/分钟/令牌（单实例部署；多实例需换共享存储）
 
@@ -56,9 +56,10 @@ const BEARER_FORBIDDEN = [
   "/api/admin",
 ];
 
-// 唯一的资源 scope 豁免：/api/meta（版本协商）是 solo-issue-mcp 启动自检的最小前提，
-// 任何有效令牌可读——"路径无资源段默认拒绝"不适用于它，故显式列出而非改推导规则
-const SCOPE_EXEMPT_PATHS = new Set(["/api/meta"]);
+// 资源 scope 豁免：/api/meta（版本协商，solo-issue-mcp 启动自检的最小前提）与
+// /api/me（身份回吐——披露面仅为令牌归属人自画像，Agent 对齐「我是谁」的最小前提）。
+// 两条都是自描述端点，"路径无资源段默认拒绝"不适用于它们，故显式列出而非改推导规则
+const SCOPE_EXEMPT_PATHS = new Set(["/api/meta", "/api/me"]);
 
 const RATE_LIMIT_PER_MIN = 120;
 

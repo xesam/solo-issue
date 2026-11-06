@@ -36,7 +36,6 @@ import { AttachmentTile } from "@/components/issues/AttachmentPicker";
 import type { Translator } from "@/i18n/config";
 
 const FIELD_LABEL: Record<string, string> = {
-  title: "fieldTitle",
   description: "fieldDescription",
 };
 
@@ -134,7 +133,6 @@ export default function IssueDetail({
   const t = useTranslations("issues");
   const tCommon = useTranslations("common");
 
-  const [title, setTitle] = useState(initialIssue.title);
   const [descDoc, setDescDoc] = useState<JSONContent | null>(
     (initialIssue.description as JSONContent | null) ?? null,
   );
@@ -170,14 +168,16 @@ export default function IssueDetail({
   const router = useRouter();
 
   // dirty：本地编辑 vs 服务器快照。供：sticky 保存栏变色、beforeunload/路由离开拦截、轮询防回写
+  // descEmpty：正文被清空的兜底闸（与服务端 zod 同判据）——dirty 不含它，否则清空后按钮
+  // 反而变灰到看不出「为什么不能保存」；两条件分开供按钮与防回写各取所需
   const dirty =
     !!issue &&
-    (title !== issue.title ||
-      JSON.stringify(descDoc ?? null) !== descBaseRef.current ||
+    (JSON.stringify(descDoc ?? null) !== descBaseRef.current ||
       (stateId || "") !== (issue.stateId ?? "") ||
       JSON.stringify([...assigneeIds].sort()) !==
         JSON.stringify(issue.assignees.map((a) => a.user.id).sort()) ||
       !fieldValuesEqual(fieldValues, issue.fieldValues as FieldValues | null));
+  const descEmpty = !docToText(descDoc ?? undefined).trim();
   const items = [...earlier, ...(timeline.data?.items ?? [])];
   const canLoadEarlier = earlier.length
     ? hasEarlier
@@ -217,7 +217,6 @@ export default function IssueDetail({
   useEffect(() => {
     // 协作轮询防噪：有未保存本地修改时不回写服务器状态（否则 30s 轮询会把正在敲的字冲掉）
     if (issue && !dirty) {
-      setTitle(issue.title);
       setDescDoc((issue.description as JSONContent | null) ?? null);
       setStateId(issue.stateId ?? "");
       setAssigneeIds(issue.assignees.map((a) => a.user.id));
@@ -242,20 +241,19 @@ export default function IssueDetail({
   async function save(andBack = false) {
     // 与「保存」按钮同闸（⌘Enter 旁路不经 disabled）：
     // - 防重入：并行双发 PATCH 相互踩
-    // - 「没改动」/「标题空」同样拒绝——按钮置灰的理由快捷键不得绕过
-    if (saving || !dirty || !title.trim()) return;
+    // - 「没改动」/「正文被清空」同样拒绝——按钮置灰的理由快捷键不得绕过
+    if (saving || !dirty || descEmpty) return;
     setSaving(true);
     setError(null);
     const descChanged = JSON.stringify(descDoc ?? null) !== descBaseRef.current;
     // 请求飞行中用户可能继续编辑：响应收敛只覆盖「未被继续动过」的字段。
-    // 必须用函数式 setState 与最新值比对——闭包里的 title 等被 await 冻结，
-    // 直接 `title === snap.title` 恒真，等于把飞行中的编辑也覆盖掉
-    const snap = { title, stateId, assigneeIds, fieldValues };
+    // 必须用函数式 setState 与最新值比对——闭包里的 stateId 等被 await 冻结，
+    // 直接 `v === snap.stateId` 恒真，等于把飞行中的编辑也覆盖掉
+    const snap = { stateId, assigneeIds, fieldValues };
     try {
       const saved = await apiPatch<IssueDTO>(
         `/api/projects/${projectId}/issues/${number}`,
         {
-          title,
           ...(descChanged ? { description: descDoc ?? { type: "doc", content: [] } } : {}),
           stateId: stateId || null,
           assigneeIds,
@@ -263,10 +261,9 @@ export default function IssueDetail({
         },
       );
       // 保存成功后以服务端归一化结果收敛本地状态，摆脱「dirty 卡死」：
-      // 服务端会 trim 标题、归一化字段值——本地若保留用户原始输入，
-      // 与刷新回来的 DTO 结构不等，dirty 永远无法回到 false（防回写
-      // effect 只在 !dirty 时同步，形成死锁）；描述基线同样以响应为准
-      setTitle((v) => (v === snap.title ? saved.title : v));
+      // 服务端会归一化字段值——本地若保留用户原始输入，与刷新回来的 DTO
+      // 结构不等，dirty 永远无法回到 false（防回写 effect 只在 !dirty 时
+      // 同步，形成死锁）；描述基线同样以响应为准
       setStateId((v) => (v === snap.stateId ? (saved.stateId ?? "") : v));
       setAssigneeIds(
         (v) =>
@@ -388,7 +385,6 @@ export default function IssueDetail({
         main={
           <IssueForm
             values={{
-              title,
               descDoc,
               stateId,
               assigneeIds,
@@ -396,7 +392,6 @@ export default function IssueDetail({
               stagedFiles: [],
             }}
             onChange={(patch) => {
-              if (patch.title !== undefined) setTitle(patch.title);
               if (patch.descDoc !== undefined) setDescDoc(patch.descDoc);
               if (patch.stateId !== undefined) setStateId(patch.stateId);
               if (patch.assigneeIds !== undefined) setAssigneeIds(patch.assigneeIds);
@@ -441,7 +436,7 @@ export default function IssueDetail({
               <>
               <Button
                 type="submit"
-                disabled={saving || !dirty || !title.trim()}
+                disabled={saving || !dirty || descEmpty}
               >
                 {saving ? tCommon("saving") : tCommon("save")}
               </Button>
@@ -449,7 +444,7 @@ export default function IssueDetail({
                 type="button"
                 variant="outline"
                 onClick={() => void save(true)}
-                disabled={saving || !dirty || !title.trim()}
+                disabled={saving || !dirty || descEmpty}
               >
                 {t("saveAndBack")}
               </Button>
