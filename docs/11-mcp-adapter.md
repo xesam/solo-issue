@@ -106,8 +106,8 @@ solo-issue/
 | `list_issues` | `GET /api/projects/:projectId/issues` | 项目内筛选（stateId/assigneeId/q/分页/cf.*） |
 | `read_issue` | `GET /api/projects/:projectId/issues/:number` | Issue 详情 |
 | `read_history` | `GET /api/projects/:projectId/issues/:number/activities` | 活动流（审计） |
-| `create_issue` | `POST /api/projects/:projectId/issues` | `{ title, descriptionText?, stateId?, assigneeIds?, fieldValues? }` |
-| `update_issue` | `PATCH /api/projects/:projectId/issues/:number` | 部分更新，多次调用安全 |
+| `create_issue` | `POST /api/projects/:projectId/issues` | `{ descriptionText, stateId?, assigneeIds?, fieldValues? }`（正文必填；Agent 直传纯文本形态） |
+| `update_issue` | `PATCH /api/projects/:projectId/issues/:number` | 部分更新，多次调用安全（正文不可改空） |
 | `add_comment` | `POST /api/projects/:projectId/issues/:number/comments` | Tiptap 文档；提及节点 `{ type: "mention", attrs: { id, label } }` |
 
 暂不映射：附件传输、批量更新、保存视图、时间线合并流、治理端——遵循「令牌能做什么才暴露什么」，后续按需增量。
@@ -292,7 +292,7 @@ sequenceDiagram
 
 实现侧已落地：`packages/mcp` 全量实现（工具面、启动自检、错误透传、单测），verify-mcp 契约矩阵纳入 `pnpm verify`；配套文档影响面均已合入（AGENTS.md 的 426 错误行与 MCP 接入段、06 的 `/api/meta` 与错误语义、10-testing 的验收矩阵分层说明、01 §6 的已实现声明、`packages/mcp/README.md` 用户面文档）。
 
-npm 已发布：`solo-issue-mcp@0.0.1`（2026-10-26）起 `npx -y solo-issue-mcp@latest` 可用，根 README 的 MCP 快速入口已就位。仓库当前版本 0.0.2（whoami / list_workspaces 增补与 `wsSlug` 必填化），待下一次发布推上 `latest`。后续发布按 §5.5 单 PR 原子变更：服务端 tag ↔ MCP 版本映射随发布说明记录；工具面破坏性变更按 semver 升位并在 release note 标注。
+npm 已发布：`solo-issue-mcp@0.0.1`（2026-10-26）起 `npx -y solo-issue-mcp@latest` 可用，根 README 的 MCP 快速入口已就位。仓库当前版本 0.0.2（whoami / list_workspaces 增补、`wsSlug` 必填化、issue 标题字段废除——`create_issue`/`update_issue` 工具签名随 REST 契约变更；预发布阶段工具面变更随该版一并发出，无独立升位），待发布推上 `latest`。后续发布按 §5.5 单 PR 原子变更：服务端 tag ↔ MCP 版本映射随发布说明记录；工具面破坏性变更按 semver 升位并在 release note 标注。
 
 ## 8. 风险与缓解
 

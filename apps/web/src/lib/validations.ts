@@ -2,6 +2,7 @@ import { z } from "zod";
 import { parse } from "@/lib/api";
 import type { IssueFilters } from "@/lib/dto";
 import { API_SCOPES } from "@/lib/scopes";
+import { docToText } from "@/lib/tiptap-text";
 
 // 状态分组（三档结局分类，与 prisma StateGroup 枚举同步）
 const STATE_GROUPS = ["ACTIVE", "COMPLETED", "CANCELLED"] as const;
@@ -268,8 +269,11 @@ export const importCustomFieldsSchema = z.object({
 });
 
 // ── issue ──
-export const createIssueSchema = z.object({
-  title: z.string().trim().min(1, "errors.titleRequired").max(255),
+// 标题字段已废除：issue 正文即 description（Tiptap 文档 / 纯文本二选一），
+// 各消费面的摘要行由描述首个非空行派生（lib/issue-summary）。
+// 正文必填：description 与 descriptionText 至少一个非空——空 issue 无消费
+// 价值，必填不许静默兜底（客户端置灰 + 服务端双闸）。
+const issueContentShape = z.object({
   description: tiptapDocSchema.nullable().optional(),
   descriptionText: z.string().max(20000).optional(),
   // stateId：非空字符串（空串是前端占位残留，不该被静默吞成默认状态）
@@ -279,14 +283,47 @@ export const createIssueSchema = z.object({
   fieldValues: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const updateIssueSchema = createIssueSchema
+export const createIssueSchema = issueContentShape.superRefine((v, ctx) => {
+  const text = v.description
+    ? docToText(v.description as never)
+    : (v.descriptionText ?? "");
+  if (!text.trim())
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "errors.descriptionRequired",
+      path: ["description"],
+    });
+});
+
+// 未 refine 的裸对象：batchUpdateIssueSchema 需要 .pick()（ZodEffects 无该方法）
+const updateIssueObject = issueContentShape
   .partial()
   .extend({ isArchived: z.boolean().optional() });
+
+export const updateIssueSchema = updateIssueObject.superRefine((v, ctx) => {
+  // 正文不可被「改空」：显式传 description 须为非空文档，descriptionText 须非空白
+  if (v.description !== undefined) {
+    const text =
+      v.description === null ? "" : docToText(v.description as never);
+    if (!text.trim())
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "errors.descriptionRequired",
+        path: ["description"],
+      });
+  }
+  if (v.descriptionText !== undefined && !v.descriptionText.trim())
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "errors.descriptionRequired",
+      path: ["descriptionText"],
+    });
+});
 
 // U3.1：批量更新（每条逐次复用 updateIssue——Activity/通知/护栏全部继承）
 export const batchUpdateIssueSchema = z.object({
   numbers: z.array(z.number().int().positive().max(2_147_483_647)).min(1).max(100),
-  patch: updateIssueSchema
+  patch: updateIssueObject
     .pick({ stateId: true, assigneeIds: true, isArchived: true })
     .refine((v) => Object.keys(v).length > 0, { message: "errors.patchRequired" }),
 });

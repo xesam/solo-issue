@@ -108,7 +108,8 @@ export default function MemberCombobox({
                      tabIndex={disabled ? -1 : 0}
                      aria-label={t("removeMember", { name: m.user.name })}
                     className={cn(
-                      "cursor-pointer rounded-full text-muted-foreground/60 hover:text-foreground",
+                      // 光标走 globals.css 对 [role="button"] 的全局规则，不散写 cursor-pointer
+                      "rounded-full text-muted-foreground/60 hover:text-foreground",
                       disabled && "pointer-events-none opacity-40",
                     )}
                     onClick={(e) => {

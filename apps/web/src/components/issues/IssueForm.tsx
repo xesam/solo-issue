@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { State } from "@prisma/client";
 import type { CustomFieldDTO } from "@/lib/client/api";
@@ -16,7 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TriangleAlert } from "lucide-react";
 
 // 问题表单（创建/编辑统一大组件）：
-// 「新建问题」与「编辑问题」共用同一套 UI/UX——标题、描述、属性区、附件区、
+// 「新建问题」与「编辑问题」共用同一套 UI/UX——描述、属性区、附件区、
 // 底部操作栏的布局与交互全部在此定义，两页不允许再各自演化出分叉的外观。
 //
 // 架构约定：
@@ -25,8 +24,9 @@ import { TriangleAlert } from "lucide-react";
 // - IO 全部在页面：提交/上传/校验都是页面职责，表单通过 onSubmit/onPickFiles 回调
 //
 // 键盘语义（两页一致，实现在组件内 handleKeyDown）：
-// - 裸 Enter（标题/自定义字段等单行输入内）→ 焦点送去描述区，不提交
 // - ⌘/Ctrl+Enter → 提交（onSubmit）
+// - 属性区单行输入内裸 Enter → 仅拦截隐式提交，不派发动作（正文是首个字段，
+//   无“送往正文”的焦点需求；date 输入不拦：保留原生日历弹层）
 //
 // 附件宫格（两页一致）：属性区末尾的同一位置，统一的方格缩略图 + 末尾「+」格
 // 单一入口（AttachmentPicker）。区别仅在数据语义——创建页选中的文件进
@@ -34,7 +34,6 @@ import { TriangleAlert } from "lucide-react";
 // 编辑页选中即调 onPickFiles 上传，已传格列表由 attachments 插槽注入宫格头部。
 
 export interface IssueFormValues {
-  title: string;
   descDoc: JSONContent | null;
   /** stateId；"" = 无状态 */
   stateId: string;
@@ -54,7 +53,7 @@ export default function IssueForm({
   knownUsers,
   customFields,
   descPlaceholder,
-  titleAutofocus = false,
+  descAutofocus = false,
   onUploadImage,
   onPickFiles,
   attachments,
@@ -76,7 +75,7 @@ export default function IssueForm({
   knownUsers?: { id: string; name: string; email?: string | null; avatarUrl?: string | null }[];
   customFields: CustomFieldDTO[] | undefined;
   descPlaceholder: string;
-  titleAutofocus?: boolean;
+  descAutofocus?: boolean;
   /** 编辑页：描述里粘贴图片的上传回调；创建页不传（图片需 issue 存在） */
   onUploadImage?: (file: File) => Promise<string>;
   /** 编辑页：选中附件立即上传；创建页不传 → 进 stagedFiles 暂存 */
@@ -93,20 +92,16 @@ export default function IssueForm({
   secondary?: React.ReactNode;
 }) {
   const t = useTranslations("issues");
-  const descRef = useRef<HTMLDivElement>(null);
-  function focusDesc() {
-    (descRef.current?.querySelector(".rich-content") as HTMLElement | null)?.focus();
-  }
 
   // 键盘语义在 keydown 层兑现（onSubmit 已经分辨不出裸 Enter——隐式提交派发的
   // submit 事件 nativeEvent 是 SubmitEvent、非 KeyboardEvent，事后判别不可靠）：
   // - ⌘/Ctrl+Enter → 提交
-  // - 裸 Enter（标题/自定义字段等单行输入内）→ 焦点送去描述区，不提交
+  // - 属性区单行输入内裸 Enter → 拦隐式提交兜底，不派发动作
   // - 弹层检索框（cmdk）内 → 只拦隐式提交兜底，不抢弹层的 Enter 选中语义
   // - date 输入不拦：保留原生日历弹层的键盘开合路径
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key !== "Enter") return;
-    // IME 组合态的 Enter 是「上屏」不是「提交」——抢走会把焦点意外送到描述区
+    // IME 组合态的 Enter 是「上屏」不是「提交」——抢走会打断输入
     if (e.nativeEvent.isComposing) return;
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
@@ -124,7 +119,6 @@ export default function IssueForm({
       !["button", "checkbox", "date", "file", "radio", "reset", "submit", "hidden"].includes(type)
     ) {
       e.preventDefault();
-      focusDesc();
     }
   }
 
@@ -143,26 +137,15 @@ export default function IssueForm({
 
   return (
     <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-6">
-      {/* 标题：文档式输入，非表单框 */}
-      <input
-        value={values.title}
-        onChange={(e) => onChange({ title: e.target.value })}
-        placeholder={t("titlePlaceholder")}
-        autoFocus={titleAutofocus}
-        aria-required="true"
-        aria-invalid={!values.title.trim()}
-        className="w-full bg-transparent text-xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/40"
+      {/* 描述：issue 正文即此编辑器（标题概念已废除，摘要由首行派生） */}
+      <RichEditor
+        doc={values.descDoc ?? undefined}
+        onUpdate={(doc) => onChange({ descDoc: doc })}
+        members={memberOptions}
+        placeholder={descPlaceholder}
+        onUploadImage={onUploadImage}
+        autoFocus={descAutofocus}
       />
-
-      <div ref={descRef}>
-        <RichEditor
-          doc={values.descDoc ?? undefined}
-          onUpdate={(doc) => onChange({ descDoc: doc })}
-          members={memberOptions}
-          placeholder={descPlaceholder}
-          onUploadImage={onUploadImage}
-        />
-      </div>
 
       {/* 属性区：编辑器正下方，字段改动与提交动作同屏 */}
       <section>

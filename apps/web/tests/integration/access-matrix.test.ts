@@ -126,6 +126,11 @@ describe("项目可见性（公开 = 工作区成员；私有 = ProjectMember �
   });
 
   it("公开项目：非成员（outsider）404——「公开 = 工作区成员」公式的关键负例", async () => {
+    // 不存在的项目同样 404（requireProject 的 no-project 分支——与私有项目同码，防枚举）
+    await expectHttpError(
+      access((t) => requireProject(bearerRequest("GET", `/api/projects/${pub.id}`, t), "no-such-project"), owner),
+      404,
+    );
     await expectHttpError(
       access((t) => requireProject(bearerRequest("GET", `/api/projects/${pub.id}`, t), pub.id), outsider),
       404,
@@ -185,12 +190,12 @@ describe("写权限（GUEST 一律只读，无论层级）", () => {
       ),
       403,
     );
-    // 读仍可
+    // 读仍可（锚定 project 身份，与上文正例同口径——toBeTruthy 防不住「返回异常形状但不抛错」的退化）
     const r = await access(
       (t) => requireProject(bearerRequest("GET", `/api/projects/${pub.id}`, t), pub.id),
       member,
     );
-    expect(r).toBeTruthy();
+    expect((r as { project: { id: string } }).project.id).toBe(pub.id);
   });
 
   it("MEMBER 可写公开项目（锚定 project 身份）", async () => {
@@ -251,6 +256,8 @@ describe("项目管理员门槛（ProjectRole.ADMIN ∨ 工作区 OWNER）", () 
     expect((asProjAdmin as { project: { id: string } }).project.id).toBe(pub.id);
     // 成员列表的 user 画像与 USER_LITE 同口径（含 origin）——listProjectMembers 曾漏该字段
     const pms = await listProjectMembers(pub.id);
+    // 非空锚：every 对空集恒真，列表退化成 [] 时须先红在这里
+    expect(pms.some((m) => m.user.id === projAdmin.id)).toBe(true);
     expect(pms.every((m) => m.user && m.user.origin)).toBe(true);
   });
 

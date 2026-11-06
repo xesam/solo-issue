@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { apiGet, apiPut } from "@/lib/client/api";
+import { issueSummary } from "@/lib/issue-summary";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Avatar, StateBadge, fmtRelative } from "@/components/ui/bits";
@@ -39,7 +40,7 @@ import { TableShell } from "@/components/ui/table-shell";
 type WBIssue = {
   id: string;
   number: number;
-  title: string;
+  descriptionText: string | null;
   updatedAt: string;
   state: { name: string; color: string; group: string } | null;
   assignees: { user: { id: string; name: string; email: string | null; avatarUrl: string | null } }[];
@@ -541,7 +542,7 @@ function IssueTable({
                         </Link>
                         <span className="font-mono">#{i.number}</span>
                       </p>
-                      <p className="truncate font-medium">{i.title}</p>
+                      <p className="truncate font-medium">{issueSummary(i.descriptionText)}</p>
                     </TableCell>
                     <TableCell className="px-4 py-2.5">
                       <StateBadge state={i.state ? { name: i.state.name, color: i.state.color } : null} />

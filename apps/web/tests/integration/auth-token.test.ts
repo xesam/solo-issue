@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { MIN_MCP_VERSION } from "@/lib/api-contract";
 import { hashToken } from "@/server/auth/hash";
 import { TOKEN_PREFIX, createApiToken, verifyApiTokenRequest } from "@/server/auth/token";
-import { bearerRequest, cleanupFixtures, mkUser, uid } from "./helpers";
+import { bearerRequest, cleanupFixtures, mkUser } from "./helpers";
 
 // R3：Bearer 令牌通道全矩阵（401/403/429 + scope ∩ 角色）
 // 与 AGENTS.md「Agent API 接入」段对齐：断言以状态码为准，不匹配文案原文

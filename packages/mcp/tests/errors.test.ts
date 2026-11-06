@@ -8,14 +8,14 @@ describe("okResult", () => {
   });
 });
 
-describe("errorResult（AGENTS.md §3 语义逐条对齐）", () => {
+describe("errorResult（AGENTS.md §3 分诊方向对齐：单列指引 + 兜底）", () => {
   const msg = (e: unknown) => (errorResult(e).content[0] as { text: string }).text;
 
   it("401/403/404/422/426/429 各带对应指引", () => {
     expect(msg(new ApiHttpError(401, "x"))).toMatch(/重新签发/);
     expect(msg(new ApiHttpError(403, "缺少权限范围: issues:write"))).toMatch(/不要重试/);
     expect(msg(new ApiHttpError(404, "x"))).toMatch(/不存在/);
-    expect(msg(new ApiHttpError(422, "title: 必填"))).toMatch(/修正参数/);
+    expect(msg(new ApiHttpError(422, "description: 必填"))).toMatch(/修正参数/);
     expect(msg(new ApiHttpError(426, "x"))).toMatch(/solo-issue-mcp@latest/);
     expect(msg(new ApiHttpError(429, "x", "12"))).toMatch(/Retry-After: 12s/);
   });

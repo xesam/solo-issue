@@ -64,7 +64,7 @@ async function preClean() {
   try {
     const fields = await prisma.customField.deleteMany({ where: { key: "agent_demo_sev" } });
     const issues = await prisma.issue.deleteMany({
-      where: { title: { startsWith: "[agent-demo]" } },
+      where: { descriptionText: { startsWith: "[agent-demo]" } },
     });
     if (fields.count || issues.count)
       console.log(`已预清上轮中断残留：字段 × ${fields.count}、issue × ${issues.count}`);
@@ -136,8 +136,7 @@ async function main() {
   const created = await api("POST", `/api/projects/${PID}/issues`, {
     token: TOKEN,
     body: {
-      title: "[agent-demo] 定时备份任务失败",
-      descriptionText: "Agent 巡检发现备份作业连续 2 天未产出快照。",
+      descriptionText: "[agent-demo] 定时备份任务失败——Agent 巡检发现备份作业连续 2 天未产出快照。",
       assigneeIds: [ww.user.id],
       stateId: todo.id,
     },
@@ -151,9 +150,9 @@ async function main() {
   // ── 4. Agent 更新 + 评论（@王五 → 走 M4 通知回路）──
   const updated = await api("PATCH", `/api/projects/${PID}/issues/${num}`, {
     token: TOKEN,
-    body: { title: "[agent-demo] 定时备份任务失败（已升级）" },
+    body: { descriptionText: "[agent-demo] 定时备份任务失败（已升级）" },
   });
-  check("更新 issue", updated.status === 200 && updated.json?.data?.title?.includes("已升级"));
+  check("更新 issue", updated.status === 200 && updated.json?.data?.descriptionText?.includes("已升级"));
 
   const comment = await api("POST", `/api/projects/${PID}/issues/${num}/comments`, {
     token: TOKEN,
@@ -287,7 +286,7 @@ async function main() {
   check("只读令牌可读 issue", roRead.status === 200);
   const roWrite = await api("POST", `/api/projects/${PID}/issues`, {
     token: RO_TOKEN,
-    body: { title: "越权尝试" },
+    body: { descriptionText: "越权尝试" },
   });
   check("只读令牌写 issue → 403", roWrite.status === 403);
 
@@ -324,7 +323,8 @@ async function main() {
   // ── 9. 收尾：撤销令牌 ──
   console.log("\n[9] 令牌生命周期");
   const listTokens = await api("GET", "/api/api-tokens", { cookie: admin });
-  check("列表不含令牌明文", JSON.stringify(listTokens.json).indexOf("itr_") === -1);
+  // 先锚列表可达（200）：接口 500 时 json 为 null，indexOf 恒 -1，空断言会静默绿
+  check("令牌列表可达且不含令牌明文", listTokens.status === 200 && JSON.stringify(listTokens.json).indexOf("itr_") === -1);
   // 只撤销本脚本铸的三枚令牌——删除管理员名下全部令牌会误伤真实运维凭证
   const mintedIds = [mint, mint2, mint3]
     .map((m) => ((m as any).json?.data?.id) as string | undefined)
@@ -338,8 +338,9 @@ async function main() {
   check("撤销后旧令牌 → 401", revoked.status === 401);
 
   // ── 10. 收尾自清理 ──
-  // issue 无删除 API，直连 Prisma 硬删本轮演示数据（issue + 演示字段）。
-  // 清理成败计入断言（自删是承诺项）；历史残留的兜底清扫在 scripts/ops-cleanup.ts
+  // 直连 Prisma 硬删本轮演示数据（issue + 演示字段）：清理属脚本自身职责，
+  // 级联带走活动/通知；本轮未传附件，无孤儿文件面。
+  // 清理成败计入断言（自删是承诺项）；中断残留由脚本开头的 preClean 幂等清扫
   const cleaned = await cleanup(createdIssueId);
   check("收尾自清理完成（本轮 issue 与演示字段）", cleaned);
 
@@ -361,7 +362,7 @@ async function cleanup(issueId: string | undefined): Promise<boolean> {
       await prisma.$disconnect();
     }
   } catch (e) {
-    console.error("收尾自清理失败（残留需手工清理或跑 scripts/ops-cleanup.ts）：", e);
+    console.error("收尾自清理失败（残留数据重跑本脚本时由开头 preClean 幂等清扫）：", e);
     return false;
   }
 }

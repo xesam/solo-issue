@@ -130,12 +130,12 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
 
 const safeClose = (c: Client) => c.close().catch(() => {});
 
-// ── preClean：中断残留幂等清扫（issue 按 title 前缀；级联带走通知/活动/评论）──
+// ── preClean：中断残留幂等清扫（issue 按描述正文前缀；级联带走通知/活动/评论）──
 async function preClean() {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
   try {
-    const issues = await prisma.issue.deleteMany({ where: { title: { startsWith: "[mcp-verify]" } } });
+    const issues = await prisma.issue.deleteMany({ where: { descriptionText: { startsWith: "[mcp-verify]" } } });
     if (issues.count) console.log(`已预清上轮中断残留：issue × ${issues.count}`);
   } finally {
     await prisma.$disconnect();
@@ -155,7 +155,7 @@ async function cleanup(issueId: string | undefined): Promise<boolean> {
       await prisma.$disconnect();
     }
   } catch (e) {
-    console.error("收尾自清理失败（残留请跑 scripts/ops-cleanup.ts）：", e);
+    console.error("收尾自清理失败（残留数据重跑本脚本时由开头 preClean 幂等清扫）：", e);
     return false;
   }
 }
@@ -248,8 +248,7 @@ async function main() {
   const unreadBefore = ((await api("GET", "/api/notifications", { cookie: wangwu })).json?.data?.unreadCount ?? 0) as number;
   const created = await callTool(m.client, "create_issue", {
     projectId: PID,
-    title: "[mcp-verify] MCP 契约矩阵巡检",
-    descriptionText: "M4 验收：本 issue 由 verify-mcp 经工具面创建，随脚本自清理。",
+    descriptionText: "[mcp-verify] MCP 契约矩阵巡检——M4 验收：本 issue 由 verify-mcp 经工具面创建，随脚本自清理。",
     assigneeIds: [ww.user.id],
     stateId: todo.id,
   });
@@ -261,9 +260,9 @@ async function main() {
   const updated = await callTool(m.client, "update_issue", {
     projectId: PID,
     number: num,
-    title: "[mcp-verify] MCP 契约矩阵巡检（已升级）",
+    descriptionText: "[mcp-verify] MCP 契约矩阵巡检（已升级）",
   });
-  check("update_issue 部分更新生效", !updated.isError && String(updated.data?.title).includes("已升级"));
+  check("update_issue 部分更新生效", !updated.isError && String(updated.data?.descriptionText).includes("已升级"));
 
   const commented = await callTool(m.client, "add_comment", {
     projectId: PID,
@@ -315,7 +314,7 @@ async function main() {
   // ── 6. 工具负例矩阵 ──
   console.log("\n[6] 工具负例（403/422/404/429 全走错误转译）");
   const ro = await spawnMcp(RO.token);
-  const roWrite = await callTool(ro.client, "create_issue", { projectId: PID, title: "越权尝试" });
+  const roWrite = await callTool(ro.client, "create_issue", { projectId: PID, descriptionText: "越权尝试" });
   check("只读令牌 create_issue → isError [HTTP 403]", roWrite.isError && roWrite.text.includes("[HTTP 403]"), `(${roWrite.text.slice(0, 60)}…)`);
   const roRead = await callTool(ro.client, "search_everything", { q: "MCP 契约矩阵" });
   check("只读令牌 search_everything 正常（对照组 200）", !roRead.isError);
@@ -323,7 +322,7 @@ async function main() {
 
   const ghost = await callTool(m.client, "create_issue", {
     projectId: PID,
-    title: "x",
+    descriptionText: "x",
     fieldValues: { __mcp_verify_ghost: "非法字段" },
   });
   check("未知字段 key → isError [HTTP 422]（字段明细透传）", ghost.isError && ghost.text.includes("[HTTP 422]"), `(${ghost.text.slice(0, 60)}…)`);

@@ -109,7 +109,7 @@ describe("docToText", () => {
     expect(docToText(doc)).toBe("const a = 1;");
   });
 
-  it("image 节点渲染为占位文本（mark 切断的内联节点全部保留）", () => {
+  it("image 节点渲染为占位文本（前后的内联文本不丢）", () => {
     const doc = {
       type: "doc",
       content: [

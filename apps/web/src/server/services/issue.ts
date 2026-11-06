@@ -3,6 +3,7 @@ import { HttpError } from "@/lib/api";
 import { ISSUE_INCLUDE, type IssueFilters, type UserLite } from "@/lib/dto";
 import { prisma } from "@/lib/prisma";
 import { docToMentions, docToText } from "@/lib/tiptap-text";
+import { issueSummary } from "@/lib/issue-summary";
 import { jsonEqual } from "@/lib/utils";
 import { dispatchIm, emitNotifications, recordTranslator, type NotifyItem } from "./notification";
 import { deleteFile } from "@/server/storage";
@@ -116,12 +117,7 @@ function buildIssueWhere(projectId: string, f: IssueFilters, customFieldDefs: { 
     ...(f.assigneeId ? { assignees: { some: { userId: f.assigneeId } } } : {}),
     ...(customFilters.length ? { AND: customFilters } : {}),
     ...(f.q
-      ? {
-          OR: [
-            { title: { contains: f.q, mode: "insensitive" as const } },
-            { descriptionText: { contains: f.q, mode: "insensitive" as const } },
-          ],
-        }
+      ? { descriptionText: { contains: f.q, mode: "insensitive" as const } }
       : {}),
   } satisfies Prisma.IssueWhereInput;
 }
@@ -287,7 +283,6 @@ export async function createIssue(
       data: {
         projectId,
         number: seq.issueSeq,
-        title: input.title,
         ...(input.description !== undefined && input.description !== null
           ? {
               description: input.description as Prisma.InputJsonValue,
@@ -345,7 +340,7 @@ export async function createIssue(
         userIds: input.assigneeIds,
         activityId: assignedActIds[0] ?? createdAct.id,
         title: t("im.instance.assigned", { project: project.name, actor: actor.name, ref }),
-        body: issue.title,
+        body: issueSummary(issue.descriptionText, 300),
       });
     }
     const mentioned = docToMentions(input.description as never);
@@ -355,7 +350,7 @@ export async function createIssue(
         userIds: [...mentioned],
         activityId: createdAct.id,
         title: t("im.instance.mentioned", { project: project.name, actor: actor.name, ref }),
-        body: issue.title,
+        body: issueSummary(issue.descriptionText, 300),
       });
     }
 
@@ -446,7 +441,7 @@ export async function updateIssue(
           ref,
           state: newState?.name ?? t("im.instance.noState"),
         }),
-        body: before.title,
+        body: issueSummary(before.descriptionText, 300),
       });
     }
 
@@ -490,19 +485,13 @@ export async function updateIssue(
             userIds: [userId],
             activityId: actId,
             title: t("im.instance.assigned", { project: project.name, actor: actor.name, ref }),
-            body: before.title,
+            body: issueSummary(before.descriptionText, 300),
           });
         }
       }
     }
 
     // 普通字段
-    if (input.title !== undefined && input.title !== before.title) {
-      await tx.activity.create({
-        data: { issueId: before.id, projectId, actorId: actor.id, action: "UPDATED", field: "title", oldValue: before.title, newValue: input.title },
-      });
-      data.title = input.title;
-    }
     // 体验修复①（服务端兑底）：空白文档与 null 描述同义——旧版无条件全量 PATCH
     // 会把「没碰过描述」写成空文档，diff 永不相等 → 每次保存都多一条伪活动。
     // 只有「从有内容清到空」这种真实变化才落活动。
@@ -522,7 +511,7 @@ export async function updateIssue(
       data.description = input.description as Prisma.InputJsonValue;
       data.descriptionText = input.description === null ? "" : docToText(input.description as never);
 
-      // 仅"新提及"触发通知（旧提及不重复打扰）
+      // 仅"新提及"触发通知（旧提及不重复打扰）；正文摘要反映改后的描述
       const newMentions = docToMentions(input.description as never);
       const oldMentions = docToMentions(before.description as never);
       const fresh = [...newMentions].filter((id) => !oldMentions.has(id));
@@ -532,7 +521,7 @@ export async function updateIssue(
           userIds: fresh,
           activityId: act.id,
           title: t("im.instance.mentioned", { project: project.name, actor: actor.name, ref }),
-          body: before.title,
+          body: issueSummary(docToText(input.description as never), 300),
         });
       }
     } else if (input.descriptionText !== undefined && input.descriptionText !== before.descriptionText) {
@@ -596,7 +585,7 @@ export async function updateIssue(
                 field: field.name,
                 value: display,
               }),
-              body: before.title,
+              body: issueSummary(before.descriptionText, 300),
             });
           }
         }

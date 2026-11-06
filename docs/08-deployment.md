@@ -226,6 +226,7 @@ server {
 | `TRUST_PROXY` | 否 | 直暴端口、前面没有反向代理时设 `0`（不信任 XFF/X-Real-IP，归为 unknown）；有反向代理时保持默认 |
 | `POSTGRES_TAG` | 否 | **仅 Docker**：Compose 的 postgres 镜像 tag（默认 `15-alpine`，可 `16-alpine`） |
 | `POSTGRES_HOST/PORT/USER/DB/PASSWORD` | 否 | 备份脚本 `ops-backup.sh` 使用：`HOST/PORT` 仅本机 `pg_dump` 分支；**`USER/DB` 也作用于 docker exec 分支**（默认 localhost/5432/postgres/solo_issue/postgres） |
+| `BACKUP_DIR` | 否 | 备份脚本 `ops-backup.sh` 的产物目录（默认 `./backups`，相对 `apps/web`；改路径后 crontab 与恢复步骤同步调整） |
 | `DEBIAN_MIRROR` / `NPM_REGISTRY` / `PRISMA_MIRROR` | 否 | **仅 Docker 构建**：镜像加速源（Debian apt / npm registry / Prisma 二进制，默认官方源，`.env.example` 有注释样例），参与 compose build args，对裸机部署无意义 |
 
 ## 6. 权限模型速览
@@ -298,7 +299,7 @@ sudo systemctl start solo-issue-app solo-issue-worker
 crontab -e                               # 建议：0 2 * * * cd /path && ./apps/web/scripts/ops-backup.sh
 ```
 
-- 脚本在 `apps/web` 内执行，产物固定落 `apps/web/backups/`（`db-<时间戳>.sql` + `uploads-<时间戳>.tar.gz`，归档内容前缀 `uploads/`），自动验真（空文件/缺 `CREATE TABLE` 即删并红）并保留最近 7 份
+- 脚本在 `apps/web` 内执行，产物落 `apps/web/backups/`（可用 `BACKUP_DIR` 覆盖，见 §5）——`db-<时间戳>.sql` + `uploads-<时间戳>.tar.gz`（归档内容前缀 `uploads/`），自动验真（空文件/缺 `CREATE TABLE` 即删并红）并保留最近 7 份
 - 探测到 Compose 默认容器名 `solo-issue-postgres-1` 则走 `docker exec pg_dump`，否则回退本机 `pg_dump`（连接参数取 `POSTGRES_HOST/PORT/USER/DB/PASSWORD`，缺省 localhost/5432/postgres/solo_issue/postgres）。探测锚定**克隆目录名恰为 `solo-issue`**——目录改名或自定义 `COMPOSE_PROJECT_NAME` 时锚定失败落本机分支，须改用 `POSTGRES_*` 指向该容器映射出的 5432
 - 裸机若 Postgres 在别的机器/非默认参数，先导出 `POSTGRES_*` 再跑；需保证 `pg_dump` 客户端版本 ≥ 服务端（不匹配会报版本错误）
 - **Docker 部署的附件在命名卷（`uploads` volume）内**，本脚本只打包宿主仓库 `./uploads`——容器形态需另行 `docker run --rm -v solo-issue_uploads:/data -v "$PWD/apps/web/backups":/out alpine tar czf /out/uploads.tar.gz /data`，或把 compose 的 uploads 卷改为宿主 bind mount 让本脚本直接覆盖；相应地，用脚本产物恢复时附件须解回卷：

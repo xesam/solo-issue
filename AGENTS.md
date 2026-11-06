@@ -106,10 +106,10 @@ scope 豁免：`GET /api/meta`（版本协商端点，solo-issue-mcp 启动自�
 ```
 GET /api/search?q=<关键词>[&cf.<key>=<value>]
 → { projects: [{ id, name, slug, workspace, url }],
-    issues: [{ ref, number, title, state, fieldValues, project, url }],
+    issues: [{ ref, number, summary, state, fieldValues, project, url }],
     appliedCustomFilters?, matchedFieldProjects?: [{ projectId, schemaUrl }] }
 ```
-跨工作区检索 issue 标题/描述（命中上限 20 条）与**项目名**（上限 5 条，`q` 为空的纯字段检索时项目组为空数组）；`url` 为可直接给用户的深链（根相对路径——issue → 详情页、项目 → 项目页，拼接 `SOLO_ISSUE_URL` 前缀即绝对地址）。
+跨工作区检索 issue 描述正文（命中上限 20 条；`summary` 为描述首行派生的摘要行）与**项目名**（上限 5 条，`q` 为空的纯字段检索时项目组为空数组）；`url` 为可直接给用户的深链（根相对路径——issue → 详情页、项目 → 项目页，拼接 `SOLO_ISSUE_URL` 前缀即绝对地址）。
 
 **CF-5 自定义字段过滤**：`cf.<key>=<value>` 按项目自定义字段过滤 issue（可多个；**同一项目内多字段 AND，字段定义是项目级的——不同项目间命中任一项目的条件即算匹配**）。
 - **可检索类型仅 SELECT**（CF-3c）：单选等值/多选包含；含不可检索类型键的项目不参与匹配（见下条门槛）；
@@ -135,21 +135,22 @@ GET /api/workspaces/:wsSlug/members          → 成员（assignee 的 userId �
 **自定义字段（CF-5）**：写 issue 前先读 `/fields/schema`，其 `properties` 即 `fieldValues` 的可写 key 与类型（`required`/`enum` 完整），可直接作为 tool-call 参数的 JSON Schema 校验器：
 ```json
 POST /api/projects/:pid/issues
-{ "title": "...", "fieldValues": { "severity": "s1", "customer": "ACME" } }
+{ "descriptionText": "...", "fieldValues": { "severity": "s1", "customer": "ACME" } }
 ```
 服务端按定义动态校验（类型/枚举/必填/未知 key → 422）；`null` 清空，必填不可清空；变更落 `UPDATED` 活动（`field = custom:<key>`）。
 
 ### create_issue
 ```
 POST /api/projects/:pid/issues
-{ title, descriptionText?, stateId?, assigneeIds?: [userId], fieldValues? }
+{ description | descriptionText, stateId?, assigneeIds?: [userId], fieldValues? }
 → 201 { data: issue }   // data.number 为项目内序号
 ```
+**issue 无标题字段**：正文即 `description`（Tiptap 文档）或 `descriptionText`（纯文本，Agent 直传形态），至少一个非空（缺失/空白 → 422）；列表/搜索/通知的摘要行由描述首个非空行读时派生。
 
 ### update_issue（部分更新，多次调用安全）
 ```
 PATCH /api/projects/:pid/issues/:number
-{ title?, descriptionText?, stateId?, assigneeIds?, fieldValues?, isArchived? }
+{ descriptionText?, stateId?, assigneeIds?, fieldValues?, isArchived? }
 ```
 - 状态变更写 STATE_CHANGED 活动；到达 `group=COMPLETED` 状态自动记 completedAt
 - **通知回路**：指派/@提及/状态变更/评论会自动通知同事（站内 + 企微/IM 渠道），Agent 无需自己发通知

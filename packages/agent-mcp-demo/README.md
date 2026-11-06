@@ -23,7 +23,7 @@
       "args": ["../mcp/dist/index.js"],
       "env": {
         "SOLO_ISSUE_URL": "http://localhost:8081/solo-issue",
-        "SOLO_ISSUE_TOKEN": ""
+        "SOLO_ISSUE_TOKEN": "your token"
       }
     }
   }
@@ -34,9 +34,9 @@
 |---|---|
 | `args` | 相对本目录解析（Claude Code 以项目根为工作目录启动服务器），指向 `packages/mcp` 的构建产物——所以 §1 要先 build |
 | `SOLO_ISSUE_URL` | 部署服务根，**须含 basePath**（默认部署挂在 `/solo-issue` 前缀下；本地开发为 `http://localhost:8081/solo-issue`） |
-| `SOLO_ISSUE_TOKEN` | **留空模板**——本文件要提交进 git，令牌由使用者自行填入（防泄漏纪律见 [packages/mcp/README.md](../mcp/README.md) §3.5） |
+| `SOLO_ISSUE_TOKEN` | **占位值模板**（`"your token"`）——三个示例文件都要提交进 git，令牌由使用者替换为真实值（防泄漏纪律见 [packages/mcp/README.md](../mcp/README.md) §3.5） |
 
-> 令牌为空时服务器启动即失败并提示「缺少环境变量 SOLO_ISSUE_TOKEN」，这是包的 fail-fast 设计（[packages/mcp/src/config.ts](../mcp/src/config.ts)）——不是故障，填好令牌再继续。
+> 占位令牌（或空串）无法通过启动自检：空串在 config 校验即红并提示「缺少环境变量 SOLO_ISSUE_TOKEN」；占位值会走到自检、以 401 分诊提示「API 令牌无效、已过期或被撤销：请重新签发并更新 SOLO_ISSUE_TOKEN」（[packages/mcp/src/config.ts](../mcp/src/config.ts) / [contract.ts](../mcp/src/contract.ts)）——两者都不是故障，换上真实令牌再继续。
 
 ### 2.1 换成 npm 发布包 / 线上部署
 
@@ -47,7 +47,7 @@
 | npx（零安装，通用首选） | [mcp.npx.json](./mcp.npx.json) | `npx -y solo-issue-mcp@latest` 按需拉取并缓存，无需 build/install；`@latest` 每次解析最新发布版，被服务端 426 拒时升级即自愈 |
 | 依赖（版本锁定） | [mcp.deps.json](./mcp.deps.json) | 包钉进 [package.json](./package.json) 的 devDependency（当前 `^0.0.1`，范围随发布调整）→ install 后 `.mcp.json` 指向 `node_modules/solo-issue-mcp/dist/index.js`（亦可用 `node_modules/.bin/solo-issue-mcp`）；本目录照此两步即用，自己项目照搬同款两步。适合版本审计、内网镜像、离线安装 |
 
-两种形态的令牌纪律与 §2 一致：示例一律留空 `SOLO_ISSUE_TOKEN`，由使用者填入。
+两种形态的令牌纪律与 §2 一致：示例一律带占位值 `your token`，由使用者替换。
 
 ## 3. 打开
 

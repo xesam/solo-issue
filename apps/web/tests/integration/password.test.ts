@@ -1,8 +1,10 @@
 import { afterAll, describe, expect, it } from "vitest";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/server/auth/hash";
 import { createSession } from "@/server/auth/session";
 import {
+  DUMMY_HASH,
   changePassword,
   hashPassword,
   verifyPasswordTimingSafe,
@@ -21,10 +23,16 @@ describe("密码原语", () => {
     expect(await hashPassword("same")).not.toBe(await hashPassword("same")); // 加盐
   });
 
-  it("verifyPasswordTimingSafe 对不存在的账号（hash=null）返回 false 且不炸（走 DUMMY 恒时比较；时序曲线从公开接口不可观测，由实现注释与实现本身背书）", async () => {
-    // 可锚定的语义面：不炸、false（DUMMY_HASH 分支在实现里恒走一次 bcrypt.compare，
-    // 该恒时性无公开接口可断言——e2e 亦不覆盖，防退化靠 code review，见 password.ts 注释）
+  it("verifyPasswordTimingSafe 对不存在的账号（hash=null）返回 false 且不炸（走 DUMMY 恒时比较）", async () => {
+    // 可锚定的语义面：不炸、false；时序曲线本身从公开接口不可观测——
+    // 恒时防御的可锚定前提（DUMMY 与真实哈希 cost 一致）由下方专测钉住
     expect(await verifyPasswordTimingSafe("whatever", null)).toBe(false);
+  });
+
+  it("DUMMY_HASH 的 bcrypt cost 与 hashPassword 产出的 cost 一致（防「用户不存在」分支恒时防御静默退化）", async () => {
+    // cost 不一致时两条分支耗时曲线漂移、防账号枚举失效——该不变量从公开接口不可观测，锚在此处
+    const fresh = await hashPassword("cost-parity-probe");
+    expect(bcrypt.getRounds(DUMMY_HASH)).toBe(bcrypt.getRounds(fresh));
   });
 });
 

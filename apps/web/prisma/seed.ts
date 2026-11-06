@@ -25,7 +25,7 @@ async function main() {
   const workspace = await prisma.workspace.upsert({
     where: { slug: "main" },
     update: {},
-    create: { slug: "main", name: "Default workspace" },
+    create: { slug: "main", name: "Default" },
   });
 
   // 管理员为工作区 OWNER

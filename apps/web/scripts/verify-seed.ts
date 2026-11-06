@@ -2,7 +2,9 @@
 // 依赖盘点：
 //   verify-agent 需要 工作区 main 下的项目 slug=demo，以及成员 wangwu@example.com
 //   （dev-login 不自动建号，故必须在跑验收前预置）
-//   e2e 需要「企微 mock 选人页」里的企业微信1/企业微信2（含 WECOM Identity 行）
+//   e2e 需要「企微 mock 选人页」里的企业微信1/企业微信2（含 WECOM Identity 行）；
+//   企业微信1 还需为 demo 项目的 ProjectRole.ADMIN——UI 删除旅程走
+//   requireProjectAdmin（项目负责人 ∨ 工作区负责人），纯 MEMBER 会恒 403
 // 用法：pnpm verify:seed（等价 pnpm tsx scripts/verify-seed.ts；seed 之后、起服务之前执行）
 // 幂等：重复运行安全（upsert + 存在则跳过），不覆盖既有演示项目内容。
 import "dotenv/config";
@@ -17,8 +19,8 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "solo-issue@github.com").trim().
 
 // 默认 5 状态——与 src/server/services/project.ts 的 DEFAULT_STATES 同步维护
 const DEFAULT_STATES = [
-  { name: "待梳理", color: "#64748b", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
-  { name: "待办", color: "#64748b", sequence: 25000, group: "ACTIVE" as const, isDefault: false },
+  { name: "待梳理", color: "#8b5cf6", sequence: 15000, group: "ACTIVE" as const, isDefault: true },
+  { name: "待办", color: "#3b82f6", sequence: 25000, group: "ACTIVE" as const, isDefault: false },
   { name: "进行中", color: "#f59e0b", sequence: 35000, group: "ACTIVE" as const, isDefault: false },
   { name: "已完成", color: "#22a559", sequence: 45000, group: "COMPLETED" as const, isDefault: false },
   { name: "已取消", color: "#94a3b8", sequence: 55000, group: "CANCELLED" as const, isDefault: false },
@@ -94,6 +96,16 @@ async function main() {
   } else {
     console.log(`ℹ️  演示项目 ${DEMO_PROJECT_SLUG} 已存在，跳过`);
   }
+
+  // E2E 删除旅程的权限底盘（见文件头依赖盘点）：企业微信1 上文循环已确保存在。
+  // 与文件头「不覆盖既有」哲学不同，此处是硬前置的 ensure 语义——角色被人为降级时
+  // 不自愈会让整套 e2e 以莫名的 403 形态红掉，故 update 也收敛回 ADMIN
+  const wecom1 = await prisma.user.findFirst({ where: { name: "企业微信1", origin: "WECOM" } });
+  await prisma.projectMember.upsert({
+    where: { projectId_userId: { projectId: project.id, userId: wecom1!.id } },
+    update: { role: "ADMIN" },
+    create: { projectId: project.id, userId: wecom1!.id, role: "ADMIN" },
+  });
 
   console.log(`✅ 验收数据就绪：工作区=main 项目=${DEMO_PROJECT_SLUG} 成员=${WANGWU_EMAIL}`);
 }

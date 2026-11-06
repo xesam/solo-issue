@@ -78,7 +78,7 @@ Issue 的固定主干只保留两类字段：
 
 | 模型 | 语义要点 |
 |---|---|
-| `Issue` | `number` 项目内序号（`@@unique([projectId, number])`，展示 `PROJ-123`）；`description`(Tiptap JSON) + `descriptionText`(派生纯文本) 双存储；`stateId` 删除时 SetNull；`parentId` 子任务预留（自引用层级，当前无写入路径）；`completedAt` 进入 COMPLETED 组自动打、移出自动清；`isArchived` 归档软删 |
+| `Issue` | `number` 项目内序号（`@@unique([projectId, number])`，展示 `PROJ-123`）；**无标题字段**：正文即 `description`(Tiptap JSON) + `descriptionText`(派生纯文本) 双存储，创建/更新至少一个形态非空（422）；列表/看板/搜索/通知的摘要行由 `descriptionText` 首个非空行读时派生（`lib/issue-summary` 单源，无存储列）；`stateId` 删除时 SetNull；`parentId` 子任务预留（自引用层级，当前无写入路径）；`completedAt` 进入 COMPLETED 组自动打、移出自动清；`isArchived` 归档软删 |
 | `State` | `group ∈ ACTIVE/COMPLETED/CANCELLED` **三档结局分类**——只有 COMPLETED 与 CANCELLED 被系统消费（统计/待我处理排除）；「待办/进行中」等阶段语义由项目级状态名表达，不进枚举；`@@unique([projectId, name])` 唯一 |
 | `IssueAssignee` | 复合主键 `(issueId, userId)`，多指派；写入前过可见性护栏 `assertUsersVisible`（防幽灵任务，422） |
 | `Comment` | `body`(Tiptap JSON，含 @mention 节点) + `bodyText`(派生纯文本) 同一双存储模式；`parentId` 串回复预留（当前无写入路径）；`isDeleted` 逻辑删（正文保留） |
@@ -101,7 +101,7 @@ Issue 的固定主干只保留两类字段：
 | `Activity` | **append-only 唯一事实源**：`action`（9 类）/`field`（变更字段，自定义字段为 `custom:<key>`）/`oldValue`/`newValue` 组成 JSONB diff；`projectId` 反范式冗余供项目级 feed/统计；审计、通知、时间线、AI 上下文全部从它派生 |
 | `Notification` | 从 Activity 派生；`@@unique([userId, activityId, type])` **天然去重**；`url` 深链直跳 issue |
 | `NotificationPreference` | `prefs` JSONB 结构 `{ [type]: { wecom } }`——加渠道零迁移（`dingtalk` 等为未来扩展键）；`wecom` 键作用于 IM 推送过滤（worker 消费侧），站内通知发全量不做过滤；`projectId=null` 表示全局默认（PG 对 NULL 唯一性不敏感，应用层保证单行） |
-| `MockMessage` | 仅 `ALLOW_IM_MOCK` 模式写入的模拟收件箱——验证 IM 推送文案/去重/频控的可视化工具 |
+| `MockMessage` | 仅 mock 通道（无 `WECOM_*` 凭证，且 `ALLOW_IM_MOCK` 显式开启、或未设置时处于非生产环境——缺省开发态自动开）写入的模拟收件箱——验证 IM 推送文案/去重/频控的可视化工具 |
 
 ### 3.6 集成与凭证（ApiToken / ImWebhook / ProviderCredential）
 
@@ -121,7 +121,7 @@ Issue 的固定主干只保留两类字段：
 | Activity append-only + JSONB diff | 通知收件规则内联于 issue/comment 写入事务，行为由集成测试背书 |
 | 偏好用 JSONB（类型×渠道矩阵） | 固定布尔列加渠道要 DDL 迁移；JSONB 加渠道零迁移 |
 | Identity 独立表 | 登录渠道与 User 解耦，渠道身份互不相通 |
-| 删除语义分层 | 归档软删（Issue/CustomField/选项）、停用（`User.isActive`）、评论逻辑删（`isDeleted`）；**其余物理删**（FK 级联），保持数据模型直白。项目删除有 0-issue 护栏 |
+| 删除语义分层 | 归档软删（Issue/CustomField/选项）、停用（`User.isActive`）、评论逻辑删（`isDeleted`）；**其余物理删**——绝大多数走 FK 级联，附件是裸列无 FK、删 issue 时由服务层在事务内显式清行+文件（见 `issue.ts` deleteIssue），保持数据模型直白。项目删除有 0-issue 护栏 |
 
 ## 5. 身份与建号来源（身份模型 v2）
 

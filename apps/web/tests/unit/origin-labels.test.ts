@@ -7,7 +7,7 @@ import {
   passwordDisableHint,
 } from "@/lib/origin-labels";
 
-// Translator 伪实现：回显 key 与 params（registry 层只关心键与插值不通透传）
+// Translator 伪实现：回显 key 与 params（label 映射层只关心键与插值是否透传）
 const t: Translator = (key, params) => (params ? `${key}|${JSON.stringify(params)}` : key);
 
 describe("originLabel", () => {

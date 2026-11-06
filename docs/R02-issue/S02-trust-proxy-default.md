@@ -20,7 +20,7 @@
 | `/api/auth/wecom/callback` | 30 次/分（`.../wecom/callback/route.ts:43`） | 无 |
 | `/api/auth/dev-login` | 10 次/分（`.../dev-login/route.ts:21`） | 无 |
 
-API 令牌的 120 次/分钟频控按令牌计数（`apps/web/src/server/auth/token.ts:63`），不受影响。
+API 令牌的 120 次/分钟频控按令牌计数（`apps/web/src/server/auth/token.ts:64`），不受影响。
 
 ## 3. 实际风险
 

@@ -1,7 +1,8 @@
 /**
  * 个人工作台 · 端到端验收
- * 前置：服务运行中；先执行 scripts/ops-set-password.ts solo-issue@github.com <密码>
+ * 前置：服务运行中；先执行 scripts/ops-set-password.ts <管理员邮箱> <密码>
  * 运行：pnpm tsx scripts/verify-workbench.ts <admin初始密码>
+ * 注意：管理员若处于首登待改密态，其密码将被改为本脚本固定值（FINAL_PW）——只应在验收环境运行
  */
 
 import "dotenv/config";
@@ -11,6 +12,8 @@ import { check, finish } from "./lib/verify-kit";
 
 const ROOT = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? "8081"}`;
 const BASE = ROOT.endsWith(BASE_PATH) ? ROOT : `${ROOT}${BASE_PATH}`;
+// 管理员登录键与 prisma/seed 同口径参数化——本地库常用 ADMIN_EMAIL 定制，硬编码占位会 401
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "solo-issue@github.com").trim().toLowerCase();
 
 async function call(method: string, path: string, opts: { cookie?: string; body?: unknown; ip?: string } = {}) {
   const headers: Record<string, string> = {};
@@ -35,7 +38,7 @@ async function main() {
   console.log("\n━━ 个人工作台验收 ━━\n");
 
   // ── 准备：管理员登录 + 清洗改密标记 ──
-  const login1 = await call("POST", "/api/auth/login", { body: { email: "solo-issue@github.com", password: initPw }, ip: "10.99.1.1" });
+  const login1 = await call("POST", "/api/auth/login", { body: { email: ADMIN_EMAIL, password: initPw }, ip: "10.99.1.1" });
   if (login1.status !== 200) {
     console.error("管理员登录失败，请先跑 ops-set-password"); process.exit(1);
   }
@@ -59,11 +62,10 @@ async function main() {
   const lisiCookie = lisiLogin.cookie!;
   // 管理员建号自带「首登强制改密」标记，requireApiUser 的业务接口拦截会挡住后续
   // 全部步骤——让李四走完真人首登流程（改密端点在强制状态下仍放行）
-  let lisiPw = "lisi-pass-1";
+  const lisiPw = "lisi-pass-1";
   if (lisiLogin.json?.data?.user?.mustChangePassword) {
     const changed = await call("PUT", "/api/auth/password", { cookie: lisiCookie, body: { currentPassword: lisiPw, newPassword: "lisi-pass-2" } });
     check("李四完成首登改密（清洗强制标记）", changed.status === 200);
-    lisiPw = "lisi-pass-2";
   }
 
   // ── [1] 空状态与形状 ──
@@ -89,7 +91,7 @@ async function main() {
   const PID = proj.json?.data?.id;
   const issueA = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: adminCookie,
-    body: { title: "F1-验证-李四的任务", assigneeIds: [mk.json?.data?.id] },
+    body: { descriptionText: "F1-验证-李四的任务", assigneeIds: [mk.json?.data?.id] },
   });
   check("公开项目指派李四", issueA.status === 201);
 
@@ -164,7 +166,7 @@ async function main() {
   const PPID = privProj.json?.data?.id;
   const blocked = await call("POST", `/api/projects/${PPID}/issues`, {
     cookie: adminCookie,
-    body: { title: "不应允许指派", assigneeIds: [mk.json?.data?.id] },
+    body: { descriptionText: "不应允许指派", assigneeIds: [mk.json?.data?.id] },
   });
   check("私有项目指派非成员 → 422（防幽灵任务）", blocked.status === 422);
 
@@ -174,7 +176,7 @@ async function main() {
   });
   const okAssign = await call("POST", `/api/projects/${PPID}/issues`, {
     cookie: adminCookie,
-    body: { title: "私有项目-李四可见的任务", assigneeIds: [mk.json?.data?.id] },
+    body: { descriptionText: "私有项目-李四可见的任务", assigneeIds: [mk.json?.data?.id] },
   });
   check("加入成员后指派成功", okAssign.status === 201);
 

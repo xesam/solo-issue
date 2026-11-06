@@ -16,9 +16,11 @@ test("状态流转：待梳理 → 进行中 → 已完成，时间线逐条落�
   await loginAs(page, WECOM1);
 
   await page.goto(appUrl("/w/main/p/demo/issues/new"));
-  await page.locator('input[placeholder="问题标题"]').fill(title);
+  // 标题已废除：描述正文首行即摘要，标记写进首行
+  await page.locator('[contenteditable="true"]').first().click();
+  await page.keyboard.type(title);
   await page.locator('button:has-text("创建并返回")').click();
-  await page.waitForURL("**/p/demo**", { timeout: 15_000 });
+  await page.waitForURL("**/p/demo", { timeout: 15_000 });
 
   const row = page.locator("tr", { hasText: title });
   await row.locator("a").first().click();

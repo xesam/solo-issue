@@ -18,7 +18,7 @@
 | POST | `/api/auth/dev-login` | `{ email }` 直发会话。仅 `ALLOW_DEV_LOGIN` 开启时可用（403 关闭）：显式设置优先；未设置时非生产默认开、生产默认关（初始化/救急临时用） |
 | POST | `/api/auth/logout` | 销毁会话 |
 | GET | `/api/auth/me` | 当前用户 + 所属工作区。**强制改密态**下本端点同样 403（`requireApiUser` 统一拦），可达的只有 `PUT /api/auth/password`（`getSessionUser` 通道）与 `POST /api/auth/logout`（逃生通道，改密态不拦退出）——UI 依赖登录响应中的 `mustChangePassword` 跳转 `/change-password` |
-| PUT | `/api/auth/password` | 自助改密 `{ currentPassword, newPassword }`；吊销其他会话；**无密码账号（IM 建号）403 "no password set, password change is not supported"**（UI 侧同步禁用） |
+| PUT | `/api/auth/password` | 自助改密 `{ currentPassword, newPassword }`；吊销其他会话；**无密码账号（IM 建号）403**（`errors.noPasswordSet`；文案随请求 locale 变化，断言以状态码为准。UI 侧同步禁用） |
 | GET | `/api/auth/providers` | 登录方式探测（各渠道 `supportedFlows`，企微入口开关） |
 | GET | `/api/auth/wecom/start` | 企微客户端内静默免登入口（snsapi_base） |
 | GET | `/api/auth/wecom/web-start` | 系统浏览器（PC）wwlogin 扫码入口；mock 模式回落站内模拟页。与 start 双入口同 callback（`flow` 区分） |
@@ -110,15 +110,15 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/projects/:projectId/issues` | 查询参数：`stateId` `assigneeId` `q` `archived` `orderBy`（`updatedAt`/`createdAt`）`orderDir` + 分页 `page`（1 起，缺省 1）/`pageSize`（10–500，缺省 50）+ `cf.<key>=<value>`；**缺省排序 `updatedAt` 倒序**，显式只支持 `updatedAt`/`createdAt` 两键（`archived` 参数把结果集过滤为单一归档态，不参与排序）；返回 `{ issues, total, page, pageSize }`；`issues[]` 含 `fieldValues` |
-| POST | `/api/projects/:projectId/issues` | `{ title, description?, descriptionText?, stateId?, assigneeIds?, fieldValues? }`；序号在事务内自增；`stateId` 缺省取项目 `isDefault` 状态，显式传 `null` = 有意留「无状态」（与 updateIssue 的 `null`=disconnect 同语义），显式传入但不存在/跨项目 → 422（不静默落为无状态）；`fieldValues` §5.3 动态校验 |
-| GET | `/api/projects/:projectId/issues/:number` | 详情（含状态/负责人/创建人/`fieldValues`） |
-| PATCH | `/api/projects/:projectId/issues/:number` | 部分更新（含 `fieldValues` 部分写入）；服务端 diff 生成活动：`STATE_CHANGED` / `ASSIGNED` / `UNASSIGNED` / `UPDATED`（含 `custom:<key>`）/ `ARCHIVED` / `UNARCHIVED`；进入 COMPLETED 组自动打 `completedAt`，移出自动清空；自定义字段变更可触发字段级通知 |
+| POST | `/api/projects/:projectId/issues` | `{ description?, descriptionText?, stateId?, assigneeIds?, fieldValues? }`；**正文必填**：`description`（Tiptap 文档）与 `descriptionText`（纯文本）至少一个非空，否则 422；序号在事务内自增；`stateId` 缺省取项目 `isDefault` 状态，显式传 `null` = 有意留「无状态」（与 updateIssue 的 `null`=disconnect 同语义），显式传入但不存在/跨项目 → 422（不静默落为无状态）；`fieldValues` §5.3 动态校验 |
+| GET | `/api/projects/:projectId/issues/:number` | 详情（含状态/负责人/创建人/`fieldValues`；无标题字段，摘要行由描述首行派生） |
+| PATCH | `/api/projects/:projectId/issues/:number` | 部分更新（含 `fieldValues` 部分写入）；正文不可改空（`description`/`descriptionText` 显式传空 → 422）；服务端 diff 生成活动：`STATE_CHANGED` / `ASSIGNED` / `UNASSIGNED` / `UPDATED`（含 `custom:<key>`）/ `ARCHIVED` / `UNARCHIVED`；进入 COMPLETED 组自动打 `completedAt`，移出自动清空；自定义字段变更可触发字段级通知 |
 | POST | `/api/projects/:pid/issues/batch` | 批量更新：200 + `{ updated[], failed[] }`，单条失败不影响他人 |
 | GET | `/api/projects/:projectId/issues/:number/activities` | 活动流（倒序，缺省最近 100 条，支持与 timeline 同款复合游标 `before`/`beforeId`）；Agent 审计面使用，详情页对话面板走 timeline 合并流 |
 | GET | `/api/projects/:projectId/issues/:number/timeline` | **统一时间线（合并流）**：评论+活动按 (createdAt, id) 元组序混排，**排除 `COMMENTED` 活动**（与评论本体重复，只保留评论卡片与其余活动——Agent 按「评论+活动混排」口径预期时须注意此去重）；复合游标 `before`/`beforeId`，缺省最近 50 条 + `hasMore` + `total` |
 | DELETE | `/api/projects/:projectId/issues/:number` | 删除（项目 ADMIN ∨ 工作区负责人 OWNER，即 `requireProjectAdmin`）。评论/活动/通知随 FK 级联；附件行 + 文件一并清理（文件 IO 在事务外，失败不阻断） |
 
-`description` 为 Tiptap 文档（JSON）：服务端派生 `descriptionText` 纯文本（提及渲染为 `@名字`）用于搜索与 IM 摘要；直传 `descriptionText` 仍兼容。
+`description` 为 Tiptap 文档（JSON）：服务端派生 `descriptionText` 纯文本（提及渲染为 `@名字`）用于搜索与 IM 摘要；直传 `descriptionText` 亦兼容（Agent 直传形态）。**Issue 无标题字段**：列表/看板/搜索/通知的摘要行由 `descriptionText` 首个非空行读时派生（`lib/issue-summary`）。
 
 ## 7. 评论
 
@@ -149,7 +149,7 @@
 
 ## 10. 分页与排序约定
 
-- **表格类列表**（issue 列表）用**页码式**：`page`（1 起）/ `pageSize`（10–500，缺省 50），返回带 `total`；排序服务端化（`orderBy`/`orderDir` 进 URL，可选 `updatedAt`/`createdAt`，缺省 `updatedAt` 倒序——与 §1 列表参数口径一致）
+- **表格类列表**（issue 列表）用**页码式**：`page`（1 起）/ `pageSize`（10–500，缺省 50），返回带 `total`；排序服务端化（`orderBy`/`orderDir` 进 URL，可选 `updatedAt`/`createdAt`，缺省 `updatedAt` 倒序——与 §6 列表参数口径一致）
 - **时间线**（评论/通知/工作台）用**复合游标**：`?before=<ISO 时间>&beforeId=<id>`，排序 `(时间列 desc, id desc)`——同一事务多行时间戳相同（Postgres `now()` 事务稳定），仅凭时间游标会漏行，`id` 决胜才不重不漏
 - **看板不页码化**：单次拉最新 500 条（`pageSize=500`），超限响应带 `total`，前端提示用过滤器缩小范围
 - 不做静默截断：要么可翻页拉全（页码/游标），要么显式给出上限——看板以 `total` 提示，`/api/search` 固定上限 issue 20 条、项目 5 条（见 §13 表）
@@ -188,7 +188,7 @@
 | POST | `/api/api-tokens` | `{ name, scopes[], expiresInDays? }` → 201，`token` **仅此一次返回**；`name` 必填（422） |
 | PATCH | `/api/api-tokens/:tokenId` | 重命名自己的令牌（scope/有效期签发后不可改） |
 | DELETE | `/api/api-tokens/:tokenId` | 撤销自己的令牌 |
-| GET | `/api/search?q=` | 跨工作区全局搜索 issue 标题/描述与**项目名**（支持 `cf.<key>=<value>`，见 §5.4），结果带深链 `url`（issue → 详情页、项目 → 项目页）；**固定上限 issue 20 条**（`updatedAt` 倒序）**/ 项目 5 条**（`createdAt` 倒序），均无相关度排序、无分页——上限即截断口径（见 §10）；项目分组仅在 `q` 非空时参与（纯字段检索时为空数组） |
+| GET | `/api/search?q=` | 跨工作区全局搜索 issue **描述正文**与**项目名**（支持 `cf.<key>=<value>`，见 §5.4），结果带深链 `url`（issue → 详情页、项目 → 项目页）；issue 命中行带 `summary`（描述首行派生摘要）；**固定上限 issue 20 条**（`updatedAt` 倒序）**/ 项目 5 条**（`createdAt` 倒序），均无相关度排序、无分页——上限即截断口径（见 §10）；项目分组仅在 `q` 非空时参与（纯字段检索时为空数组） |
 
 **Bearer 规则**（完整版见 [AGENTS.md](../AGENTS.md)）：权限 = scope ∩ 所属用户角色；scope = 资源:读写（路径最后一个资源段 + 方法推导，子资源随母资源 scope），`*` 全部；未知资源默认拒绝（豁免：`/api/meta` 版本协商与 `/api/me` 身份回吐，任何有效令牌可读）；频控 120 次/分/令牌（429 带 `Retry-After`）；带过旧 `X-Client: solo-issue-mcp/<version>` 头的请求全程 `426`。scope 白名单单源至 `apps/web/src/lib/scopes.ts`（`API_SCOPES`），服务端 `token.ts` 与前端 `validations.ts` 共用。契约版本的定级与升位规则单源于 [11-mcp-adapter.md](11-mcp-adapter.md) §5。
 

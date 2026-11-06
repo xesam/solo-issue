@@ -11,14 +11,15 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 const prisma = new PrismaClient();
 const DRY = process.argv.includes("--dry");
 // 附件目录锚定仓库根而非 process.cwd()：脚本可能被任意目录以绝对路径调用，
 // cwd 错位 + rm force 吞 ENOENT = DB 行删了文件全留。
-// UPLOAD_DIR 相对路径同样锚仓库根（与服务进程的语义差异：服务进程 cwd 恒为仓库根）
-const UPLOADS_ROOT = join(import.meta.dirname, "..", process.env.UPLOAD_DIR || "uploads");
+// 用 resolve 而非 join：UPLOAD_DIR 为绝对路径（Docker 形态 /app/uploads）时
+// join 会错误拼接，与 storage.ts 的解析口径一致
+const UPLOADS_ROOT = resolve(import.meta.dirname, "..", process.env.UPLOAD_DIR || "uploads");
 
 // 验收脚本历史造过的项目名前缀（新增验收脚本请用带时间戳前缀 + 收尾自删）。
 // 注意前缀较宽（verify-/qa- 是常见真实项目名），执行前先 --dry 核对误伤面
@@ -84,12 +85,12 @@ async function main() {
   // sweep 都不再执行；正常路径自清（e2e/fixtures.ts），这里是人工兜底。
   // spec 不上传附件，无附件文件可清；评论/活动/通知随 issue 级联删除
   const e2eStale = await prisma.issue.findMany({
-    where: { title: { startsWith: "E2E-" } },
-    select: { title: true },
+    where: { descriptionText: { startsWith: "E2E-" } },
+    select: { descriptionText: true },
   });
   if (e2eStale.length) {
-    for (const i of e2eStale) console.log(`  ${DRY ? "[dry] " : ""}删 E2E 残渣 issue「${i.title}」`);
-    if (!DRY) await prisma.issue.deleteMany({ where: { title: { startsWith: "E2E-" } } });
+    for (const i of e2eStale) console.log(`  ${DRY ? "[dry] " : ""}删 E2E 残渣 issue「${i.descriptionText?.slice(0, 40)}」`);
+    if (!DRY) await prisma.issue.deleteMany({ where: { descriptionText: { startsWith: "E2E-" } } });
   }
 
   // 2) 测试用户：停用（不物理删——Activity.actor 引用保留审计链）

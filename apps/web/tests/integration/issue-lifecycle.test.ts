@@ -51,6 +51,8 @@ afterAll(cleanupFixtures);
 
 describe("项目与状态地基", () => {
   it("createProject：建默认 5 状态（互斥分组 + 默认态），creator 为项目 ADMIN", async () => {
+    // 数量锚定外部承诺（docs/06「5 默认状态」）：删改 DEFAULT_STATES 而文档未跟随时在此红
+    expect(states).toHaveLength(5);
     expect(states.map((s) => s.name)).toEqual(DEFAULT_STATES.map((s) => s.name));
     expect(states.filter((s) => s.isDefault)).toHaveLength(1);
     expect(states.find((s) => s.isDefault)?.group).toBe("ACTIVE");
@@ -72,7 +74,7 @@ describe("项目与状态地基", () => {
     expect(renamed.name).toBe("验证中");
     expect(renamed.color).toBe("#445566");
 
-    const issue = await createIssue(project.id, { title: "占位置", stateId: st.id }, actor());
+    const issue = await createIssue(project.id, { descriptionText: "占位置", stateId: st.id }, actor());
     try {
       await deleteState(project.id, st.id);
       expect.unreachable();
@@ -99,8 +101,8 @@ describe("项目与状态地基", () => {
 
 describe("issue 创建", () => {
   it("序号自增、默认状态、CREATED 活动落库", async () => {
-    const i1 = await createIssue(project.id, { title: "第一" }, actor());
-    const i2 = await createIssue(project.id, { title: "第二" }, actor());
+    const i1 = await createIssue(project.id, { descriptionText: "第一" }, actor());
+    const i2 = await createIssue(project.id, { descriptionText: "第二" }, actor());
     // 序号是项目内计数器：前导状态组已占号，此处锚定「连续自增 + 正值」；
     // 项目内唯一由 schema @@unique([projectId, number]) 数据库级保证，不再重复断言
     expect(i1.number).toBeGreaterThan(0);
@@ -114,13 +116,13 @@ describe("issue 创建", () => {
   });
 
   it("stateId 显式传 null 有意留「无状态」；缺省才落默认（与 updateIssue 的 null=disconnect 同语义）", async () => {
-    const none = await createIssue(project.id, { title: "无状态行", stateId: null }, actor());
+    const none = await createIssue(project.id, { descriptionText: "无状态行", stateId: null }, actor());
     expect(none.state).toBeNull();
-    const dflt = await createIssue(project.id, { title: "默认状态行" }, actor());
+    const dflt = await createIssue(project.id, { descriptionText: "默认状态行" }, actor());
     expect(dflt.state?.id).toBe(states.find((s) => s.isDefault)?.id);
   });
 
-  it("Tiptap 描述派生 descriptionText（搜索/通知摘要用）", async () => {
+  it("Tiptap 描述派生 descriptionText（搜索/通知摘要用）；纯文本直传形态等价", async () => {
     const doc = {
       type: "doc",
       content: [
@@ -133,15 +135,15 @@ describe("issue 创建", () => {
         },
       ],
     } as const;
-    const i = await createIssue(project.id, { title: "描述", description: doc }, actor());
+    const i = await createIssue(project.id, { description: doc }, actor());
     expect(i.descriptionText).toBe("复现步骤\n- 打开首页");
-    // 显式 null = 有意无描述
-    const j = await createIssue(project.id, { title: "无描述", description: null }, actor());
-    expect(j.descriptionText).toBe("");
+    // descriptionText 直传（Agent/MCP 形态）原样落库
+    const j = await createIssue(project.id, { descriptionText: "纯文本正文" }, actor());
+    expect(j.descriptionText).toBe("纯文本正文");
   });
 
   it("创建即指派：ASSIGNED 活动 + 被指派者通知（操作者自指派不打扰）", async () => {
-    const i = await createIssue(project.id, { title: "指派", assigneeIds: [member.id] }, actor());
+    const i = await createIssue(project.id, { descriptionText: "指派", assigneeIds: [member.id] }, actor());
     expect(i.assignees.map((a) => a.user.id)).toEqual([member.id]);
     expect(
       await prisma.activity.count({ where: { issueId: i.id, action: "ASSIGNED" } }),
@@ -167,14 +169,14 @@ describe("issue 创建", () => {
         },
       ],
     } as const;
-    const i = await createIssue(project.id, { title: "提及", description: doc, assigneeIds: [] }, actor());
+    const i = await createIssue(project.id, { description: doc, assigneeIds: [] }, actor());
     expect(
       await prisma.notification.count({ where: { issueId: i.id, userId: member.id, type: "MENTIONED" } }),
     ).toBe(1);
 
     const stranger = await mkUser({ name: "路人" });
     try {
-      await createIssue(project.id, { title: "坏指派", assigneeIds: [stranger.id] }, actor());
+      await createIssue(project.id, { descriptionText: "坏指派", assigneeIds: [stranger.id] }, actor());
       expect.unreachable();
     } catch (e) {
       expect((e as HttpError).status).toBe(422);
@@ -186,17 +188,17 @@ describe("issue 更新", () => {
   let i!: Awaited<ReturnType<typeof createIssue>>;
 
   beforeAll(async () => {
-    i = await createIssue(project.id, { title: "更新主角", assigneeIds: [member.id] }, actor());
+    i = await createIssue(project.id, { descriptionText: "更新主角", assigneeIds: [member.id] }, actor());
   });
 
-  it("改标题落 UPDATED 活动；同值重复提交不产生伪活动", async () => {
-    await updateIssue(project.id, i.number, { title: "更新主角（改）" }, actor());
+  it("改描述落 UPDATED 活动；同值重复提交不产生伪活动", async () => {
+    await updateIssue(project.id, i.number, { descriptionText: "更新主角（改）" }, actor());
     expect(
-      await prisma.activity.count({ where: { issueId: i.id, action: "UPDATED", field: "title" } }),
+      await prisma.activity.count({ where: { issueId: i.id, action: "UPDATED", field: "description" } }),
     ).toBe(1);
-    await updateIssue(project.id, i.number, { title: "更新主角（改）" }, actor());
+    await updateIssue(project.id, i.number, { descriptionText: "更新主角（改）" }, actor());
     expect(
-      await prisma.activity.count({ where: { issueId: i.id, action: "UPDATED", field: "title" } }),
+      await prisma.activity.count({ where: { issueId: i.id, action: "UPDATED", field: "description" } }),
     ).toBe(1);
   });
 
@@ -257,7 +259,7 @@ describe("issue 更新", () => {
   let archIssue!: Awaited<ReturnType<typeof createIssue>>;
 
   it("归档落 ARCHIVED 活动；列表默认排除、archived=true 才可见", async () => {
-    archIssue = await createIssue(project.id, { title: "将归档" }, actor());
+    archIssue = await createIssue(project.id, { descriptionText: "将归档" }, actor());
     await updateIssue(project.id, archIssue.number, { isArchived: true }, actor());
     expect(
       await prisma.activity.count({ where: { issueId: archIssue.id, action: "ARCHIVED" } }),
@@ -288,7 +290,7 @@ describe("issue 更新", () => {
       expect((e as HttpError).status).toBe(422);
     }
     try {
-      await updateIssue(project.id, 999999, { title: "无此行" }, actor());
+      await updateIssue(project.id, 999999, { descriptionText: "无此行" }, actor());
       expect.unreachable();
     } catch (e) {
       expect((e as HttpError).status).toBe(404);
@@ -297,19 +299,19 @@ describe("issue 更新", () => {
 });
 
 describe("issue 列表与检索", () => {
-  it("q 关键词命中标题与描述全文", async () => {
+  it("q 关键词命中描述正文（title 已废除，唯一检索面即 descriptionText）", async () => {
     const hit = await createIssue(
       project.id,
-      { title: "普通标题", descriptionText: "PAYNET-777 特殊标记" },
+      { descriptionText: "PAYNET-777 特殊标记" },
       actor(),
     );
-    const byTitle = await listIssues(project.id, { q: "更新主角" }, 1, 50);
-    expect(byTitle.total).toBeGreaterThan(0);
+    const byBody = await listIssues(project.id, { q: "更新主角" }, 1, 50);
+    expect(byBody.total).toBeGreaterThan(0);
     const byDesc = await listIssues(project.id, { q: "PAYNET-777" }, 1, 50);
     expect(byDesc.issues.some((x) => x.id === hit.id)).toBe(true);
     // 负锚：先种一条不命中的行，再检索——q 过滤退化成 no-op（全量返回）时，
     // 排除断言与严格计数（全项目只有 hit 的描述含 PAYNET-777）都会红
-    const miss = await createIssue(project.id, { title: "绝不命中噪音行" }, actor());
+    const miss = await createIssue(project.id, { descriptionText: "绝不命中噪音行" }, actor());
     const reQueried = await listIssues(project.id, { q: "PAYNET-777" }, 1, 50);
     expect(reQueried.issues.some((x) => x.id === miss.id)).toBe(false);
     expect(reQueried.issues.some((x) => x.id === hit.id)).toBe(true);
@@ -344,8 +346,8 @@ describe("issue 列表与检索", () => {
       },
       { id: owner.id },
     );
-    const a = await createIssue(project.id, { title: "过滤A", fieldValues: { sev: "high" } }, actor());
-    await createIssue(project.id, { title: "过滤B", fieldValues: { sev: "low" } }, actor());
+    const a = await createIssue(project.id, { descriptionText: "过滤A", fieldValues: { sev: "high" } }, actor());
+    await createIssue(project.id, { descriptionText: "过滤B", fieldValues: { sev: "low" } }, actor());
 
     const byHigh = await listIssues(project.id, { fieldValues: { sev: "high" } }, 1, 50);
     expect(byHigh.issues.some((x) => x.id === a.id)).toBe(true);
@@ -357,28 +359,27 @@ describe("issue 列表与检索", () => {
 
     // 已定义但不可检索的类型（TEXT）同样退化为不过滤——这是 customFieldConditions
     // 的另一独立分支（type !== "SELECT"），与「未定义 key」不是同一条路径
-    const textF = await createCustomField(
+    await createCustomField(
       project.id,
       { key: "zone", name: "区域", type: "TEXT" },
       { id: owner.id },
     );
     const marked = await createIssue(
       project.id,
-      { title: "过滤C", fieldValues: { zone: "清仓大甩卖" } },
+      { descriptionText: "过滤C", fieldValues: { zone: "清仓大甩卖" } },
       actor(),
     );
     const byZone = await listIssues(project.id, { fieldValues: { zone: "清仓大甩卖" } }, 1, 50);
     const allNow = await listIssues(project.id, {}, 1, 50); // 基线取在种行之后，两数同刻
     expect(byZone.total).toBe(allNow.total); // TEXT 不参与检索 → 不过滤
     expect(byZone.issues.some((x) => x.id === marked.id)).toBe(true); // 载有该值的行不被排除
-    void textF;
   });
 });
 
 describe("批量更新", () => {
   it("部分失败不影响已成功项，failed 回报原因", async () => {
-    const a = await createIssue(project.id, { title: "批量1" }, actor());
-    const b = await createIssue(project.id, { title: "批量2" }, actor());
+    const a = await createIssue(project.id, { descriptionText: "批量1" }, actor());
+    const b = await createIssue(project.id, { descriptionText: "批量2" }, actor());
     const res = await batchUpdateIssues(
       project.id,
       [a.number, b.number, 999999],
@@ -397,7 +398,7 @@ describe("评论与时间线", () => {
   let i!: Awaited<ReturnType<typeof createIssue>>;
 
   beforeAll(async () => {
-    i = await createIssue(project.id, { title: "评论宿主", assigneeIds: [member.id] }, actor());
+    i = await createIssue(project.id, { descriptionText: "评论宿主", assigneeIds: [member.id] }, actor());
   });
 
   it("空文档评论 422；有效评论派生 bodyText + COMMENTED 活动", async () => {
@@ -500,7 +501,7 @@ describe("保存视图", () => {
 
 describe("issue 删除", () => {
   it("物理删除后详情 404", async () => {
-    const i = await createIssue(project.id, { title: "将删除" }, actor());
+    const i = await createIssue(project.id, { descriptionText: "将删除" }, actor());
     await deleteIssue(project.id, i.number);
     try {
       await getIssue(project.id, i.number);

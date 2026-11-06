@@ -45,6 +45,24 @@ describe("runSelfCheck（启动软闸分诊）", () => {
     ).rejects.toThrow(/SOLO_ISSUE_URL/);
   });
 
+  it("200 但响应非 {data} 包络（fetchMeta 产出 null）→ 人话分诊而非裸 TypeError", async () => {
+    await expect(runSelfCheck(async () => null as never)).rejects.toThrow(/包络/);
+  });
+
+  it("所有启动故障统一以 SelfCheckError 分诊（类型锁——防止退化成裸 Error 而测试仍绿）", async () => {
+    await expect(
+      runSelfCheck(async () => {
+        throw new ApiHttpError(401, "x");
+      }),
+    ).rejects.toThrow(SelfCheckError);
+    await expect(
+      runSelfCheck(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    ).rejects.toThrow(SelfCheckError);
+    await expect(runSelfCheck(async () => null as never)).rejects.toThrow(SelfCheckError);
+  });
+
   it("契约版本越界 → 升级指引且报出两侧范围", async () => {
     await expect(runSelfCheck(async () => meta(2))).rejects.toThrow(
       new RegExp(`v2.*${SUPPORTED_CONTRACTS.join("/")}.*solo-issue-mcp@latest`),

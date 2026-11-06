@@ -82,6 +82,15 @@ describe("tiptapDocSchema（文档体量设界）", () => {
     };
     expect(rejects(tiptapDocSchema, huge)).toBe(true);
   });
+  it("体量界按 UTF-8 字节计：code unit 数未超而字节数超界仍拒绝", () => {
+    // 判别性夹具："汉"是 1 code unit / 3 字节——若实现误用 .length（code unit 数），
+    // 此文档远不到 64K 字符；按 TextEncoder 字节计则超界。纯 ASCII 夹具区分不了这两种口径
+    const huge = {
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "汉".repeat(22_000) }] }],
+    };
+    expect(rejects(tiptapDocSchema, huge)).toBe(true);
+  });
   it("嵌套深度超界拒绝——64KB 挡不住的深栈（docToText 裸递归会先炸）", () => {
     // content/paragraph 逐层包裹，总字节数远小于 64KB；深度计算口径 = 实现的
     // 迭代 BFS（数组/对象各计一层），这里按 wrap 数乘 2 取深
@@ -210,14 +219,19 @@ describe("project / state schemas", () => {
 });
 
 describe("issue schemas", () => {
-  it("createIssue：标题必填、stateId 空串拒绝（前端占位不静默吞）", () => {
-    expect(rejects(createIssueSchema, { title: "" })).toBe(true);
-    expect(createIssueSchema.parse({ title: "T", stateId: null }).stateId).toBeNull();
-    expect(rejects(createIssueSchema, { title: "T", stateId: "" })).toBe(true);
+  it("createIssue：正文必填（description/descriptionText 至少一个非空）、stateId 空串拒绝（前端占位不静默吞）", () => {
+    // 标题已废除：空正文不再是合法 issue
+    expect(rejects(createIssueSchema, {})).toBe(true);
+    expect(rejects(createIssueSchema, { descriptionText: "  " })).toBe(true);
+    expect(rejects(createIssueSchema, { description: { type: "doc", content: [] } })).toBe(true);
+    expect(createIssueSchema.parse({ descriptionText: "D", stateId: null }).stateId).toBeNull();
+    expect(rejects(createIssueSchema, { descriptionText: "D", stateId: "" })).toBe(true);
   });
-  it("updateIssue 为部分更新形态（全部可缺省）", () => {
+  it("updateIssue 为部分更新形态（全部可缺省），但正文不可被改空", () => {
     expect(updateIssueSchema.parse({})).toEqual({});
     expect(updateIssueSchema.parse({ isArchived: true }).isArchived).toBe(true);
+    expect(rejects(updateIssueSchema, { descriptionText: "" })).toBe(true);
+    expect(rejects(updateIssueSchema, { description: { type: "doc", content: [] } })).toBe(true);
   });
   it("batch patch 必须至少含一个可改字段", () => {
     expect(rejects(batchUpdateIssueSchema, { numbers: [1], patch: {} })).toBe(true);

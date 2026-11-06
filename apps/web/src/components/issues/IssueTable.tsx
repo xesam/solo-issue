@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { IssueDTO } from "@/lib/dto";
 import type { IssueOrderField } from "@/lib/validations";
+import { issueSummary } from "@/lib/issue-summary";
 import {
   Avatar,
   StateBadge,
@@ -25,9 +26,9 @@ import { cn } from "@/lib/utils";
 import type { CustomFieldDTO } from "@/lib/client/api";
 import { useMembers } from "@/lib/client/api";
 import { fieldOptionColor, formatFieldValue } from "@/components/issues/custom-field-display";
-import IssueRowShareButton from "@/components/issues/IssueRowShareButton";
+import IssueRowSendButton from "@/components/issues/IssueRowSendButton";
 
-// U1.4：可排序表头（排序状态存 URL，刷新/分享/后退不丢）
+// U1.4：可排序表头（排序状态存 URL，刷新/发送/后退不丢）
 function SortHead({
   label,
   field,
@@ -82,7 +83,7 @@ export default function IssueTable({
   issues: IssueDTO[];
   wsSlug: string;
   projectSlug: string;
-  /** 摘要里的项目上下文（接收者未必在同一列表页里，分享文本需自带项目名） */
+  /** 摘要里的项目上下文（接收者未必在同一列表页里，发送文本需自带项目名） */
   projectName: string;
   orderBy?: IssueOrderField;
   orderDir?: "asc" | "desc";
@@ -120,7 +121,7 @@ export default function IssueTable({
               </TableHead>
             )}
             <TableHead className="px-4 py-2.5">{t("number")}</TableHead>
-            <TableHead className="px-4 py-2.5">{t("title")}</TableHead>
+            <TableHead className="px-4 py-2.5">{t("summary")}</TableHead>
             <TableHead className="px-4 py-2.5">{t("state")}</TableHead>
             <TableHead className="px-4 py-2.5">{t("assignees")}</TableHead>
             <TableHead className="px-4 py-2.5">{t("creator")}</TableHead>
@@ -142,7 +143,7 @@ export default function IssueTable({
             <TableRow
               key={issue.id}
               className={cn(
-                "group border-b border-border/60 last:border-0 hover:bg-muted/40",
+                "border-b border-border/60 last:border-0 hover:bg-muted/40",
                 selected.has(issue.number) && "bg-muted/50",
               )}
             >
@@ -170,7 +171,7 @@ export default function IssueTable({
                       {t("archived")}
                     </Badge>
                   )}
-                  {issue.title}
+                  {issueSummary(issue.descriptionText) || t("emptySummary")}
                 </Link>
               </TableCell>
               <TableCell className="px-4 py-2.5">
@@ -224,16 +225,16 @@ export default function IssueTable({
                   </TableCell>
                 );
               })}
-              {/* 复制链接+摘要：hover 行浮现（focus-visible 兜底键盘可发现性），复制成功切 Check */}
+              {/* 发送：点击弹预览框审查/修改后再复制 */}
               <TableCell className="px-2 py-2.5">
-                <IssueRowShareButton
+                <IssueRowSendButton
                   number={issue.number}
-                  title={issue.title}
+                  summary={issueSummary(issue.descriptionText)}
                   stateName={issue.state?.name ?? t("noState")}
                   projectName={projectName}
                   wsSlug={wsSlug}
                   projectSlug={projectSlug}
-                  className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                  className="size-7 text-muted-foreground hover:text-foreground"
                 />
               </TableCell>
             </TableRow>

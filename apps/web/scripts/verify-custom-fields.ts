@@ -19,7 +19,7 @@ import { validateFieldValues } from "../src/server/custom-fields/registry";
 import { createIssue, listIssues, updateIssue } from "../src/server/services/issue";
 import { issueFilterParams } from "../src/lib/dto";
 import { parseIssueQuery } from "../src/lib/validations";
-import { check, finish, markFailed } from "./lib/verify-kit";
+import { check, finish, markFailed, skip } from "./lib/verify-kit";
 
 async function expect422(name: string, fn: () => Promise<unknown>) {
   try {
@@ -113,7 +113,7 @@ async function main() {
   // 软删选项的语义边界：存量值仍合法，但不得再被新选
   const selIssue = await createIssue(
     pid,
-    { title: `软删选项存量值 ${dupKey}`, fieldValues: { [f.key]: "s1", [text.key]: "ACME" } },
+    { descriptionText: `软删选项存量值 ${dupKey}`, fieldValues: { [f.key]: "s1", [text.key]: "ACME" } },
     { id: actor.id, name: actor.name },
   );
   await expect422("软删选项不可再新选", async () => {
@@ -126,7 +126,7 @@ async function main() {
   console.log("\n[3] Issue 值写入：创建 + 校验");
   const issue = await createIssue(
     pid,
-    { title: `CF 验收 ${dupKey}`, fieldValues: { [dupKey]: "s1", [text.key]: "ACME", [num.key]: 24, [date.key]: "2026-01-31" } },
+    { descriptionText: `CF 验收 ${dupKey}`, fieldValues: { [dupKey]: "s1", [text.key]: "ACME", [num.key]: 24, [date.key]: "2026-01-31" } },
     { id: actor.id, name: actor.name },
   );
   const fv = (issue.fieldValues ?? {}) as Record<string, unknown>;
@@ -134,16 +134,16 @@ async function main() {
   check("Date 归一化为 YYYY-MM-DD", fv[date.key] === "2026-01-31");
 
   await expect422("未知 key 拒绝", () =>
-    createIssue(pid, { title: "坏", fieldValues: { not_exist_key: 1 } }, { id: actor.id, name: actor.name }),
+    createIssue(pid, { descriptionText: "坏", fieldValues: { not_exist_key: 1 } }, { id: actor.id, name: actor.name }),
   );
   await expect422("SELECT 非法值拒绝", () =>
-    createIssue(pid, { title: "坏", fieldValues: { [dupKey]: "s9", [text.key]: "x" } }, { id: actor.id, name: actor.name }),
+    createIssue(pid, { descriptionText: "坏", fieldValues: { [dupKey]: "s9", [text.key]: "x" } }, { id: actor.id, name: actor.name }),
   );
   await expect422("必填缺失拒绝", () =>
-    createIssue(pid, { title: "坏", fieldValues: { [dupKey]: "s1" } }, { id: actor.id, name: actor.name }),
+    createIssue(pid, { descriptionText: "坏", fieldValues: { [dupKey]: "s1" } }, { id: actor.id, name: actor.name }),
   );
   await expect422("数字类型不合法拒绝", () =>
-    createIssue(pid, { title: "坏", fieldValues: { [dupKey]: "s1", [text.key]: "x", [num.key]: "abc" } }, { id: actor.id, name: actor.name }),
+    createIssue(pid, { descriptionText: "坏", fieldValues: { [dupKey]: "s1", [text.key]: "x", [num.key]: "abc" } }, { id: actor.id, name: actor.name }),
   );
 
   console.log("\n[4] Issue 值更新：diff + Activity 事实源");
@@ -174,7 +174,7 @@ async function main() {
   check("管理列表含归档字段", all.some((x) => x.key === text.key && x.isArchived));
   const stillThere = await prisma.issue.findUnique({ where: { id: issue.id } });
   check("历史 issue 值保留", (stillThere?.fieldValues as Record<string, unknown>)?.[text.key] === "ACME");
-  const issue2 = await createIssue(pid, { title: "归档后新建", fieldValues: { [dupKey]: "s1" } }, { id: actor.id, name: actor.name });
+  const issue2 = await createIssue(pid, { descriptionText: "归档后新建", fieldValues: { [dupKey]: "s1" } }, { id: actor.id, name: actor.name });
   // 被"验收"的事实是 createIssue 没被归档必填字段拦下（帮忙函数任一失败都以异常中断）
   check("归档的必填字段不再拦截创建", issue2.number > 0);
 
@@ -223,12 +223,12 @@ async function main() {
   // 造两条具有可比自定义字段值的问题（dupKey=SELECT s1/s3）
   const f1 = await createIssue(
     pid,
-    { title: `CF 过滤A ${dupKey}`, fieldValues: { [dupKey]: "s1" } },
+    { descriptionText: `CF 过滤A ${dupKey}`, fieldValues: { [dupKey]: "s1" } },
     { id: actor.id, name: actor.name },
   );
   const f2 = await createIssue(
     pid,
-    { title: `CF 过滤B ${dupKey}`, fieldValues: { [dupKey]: "s3" } },
+    { descriptionText: `CF 过滤B ${dupKey}`, fieldValues: { [dupKey]: "s3" } },
     { id: actor.id, name: actor.name },
   );
   const bySelect = await listIssues(pid, { fieldValues: { [dupKey]: "s1" } }, 1, 50);
@@ -264,7 +264,7 @@ async function main() {
   check("创建多选 SELECT 字段", tags.type === "SELECT" && (tags.settings as { multiple?: boolean })?.multiple === true);
   const multiIssue = await createIssue(
     pid,
-    { title: `CF 多选A ${dupKey}`, fieldValues: { [tags.key]: ["area-fe", "prod", "area-fe"] } },
+    { descriptionText: `CF 多选A ${dupKey}`, fieldValues: { [tags.key]: ["area-fe", "prod", "area-fe"] } },
     { id: actor.id, name: actor.name },
   );
   const multiFv = multiIssue.fieldValues as Record<string, unknown>;
@@ -276,7 +276,7 @@ async function main() {
   await expect422("多选非法选项拒绝", () =>
     createIssue(
       pid,
-      { title: `CF 多选坏 ${dupKey}`, fieldValues: { [tags.key]: ["area-fe", "nope"] } },
+      { descriptionText: `CF 多选坏 ${dupKey}`, fieldValues: { [tags.key]: ["area-fe", "nope"] } },
       { id: actor.id, name: actor.name },
     ),
   );
@@ -328,7 +328,7 @@ async function main() {
 
   const cfIssue = await createIssue(
     pid,
-    { title: "CF 验收 USER 字段", fieldValues: { owner2: leadId, watchers2: [leadId] } } as never,
+    { descriptionText: "CF 验收 USER 字段", fieldValues: { owner2: leadId, watchers2: [leadId] } } as never,
     { id: actor.id, name: actor.name },
   );
   const cfFv = (cfIssue.fieldValues ?? {}) as Record<string, unknown>;
@@ -414,7 +414,7 @@ async function main() {
   if (canAssertLeadNotify) {
     check("值命中规则 → 触发通知（项目负责人）", afterCount === beforeCount + 1, `${beforeCount}→${afterCount}`);
   } else {
-    console.log("  ⏭️ 值命中规则 → 触发通知（单人环境 lead=操作者，自我排除使然，跳过）");
+    skip("值命中规则 → 触发通知（项目负责人）", "单人环境 lead=操作者，自我排除使然");
   }
 
   // 用同值重复提交：应因 diff 无变化而不重复提醒
@@ -427,14 +427,14 @@ async function main() {
   if (canAssertLeadNotify) {
     check("同值重复提交不重复通知", n3 === n2);
   } else {
-    console.log("  ⏭️ 同值重复提交不重复通知（单人环境恒无通知，跳过）");
+    skip("同值重复提交不重复通知", "单人环境恒无通知");
   }
 
   // 操作者本人排除：收件人集合经 recipients.filter(id !== actor.id) 排除操作者
   // （issue.ts）。本脚本环境无法机械观测该机制——单人环境 lead≡actor（会被
   // 自我排除、diff 又无变化），多人环境 actor 也非 PROJECT_LEAD 候选；写一条
   // 恒真断言（改成不命中的值再数 actor 通知）比缺断言更糟，故诚实记跳过
-  console.log("  ⏭️ 操作者本人排除（单人环境机制不可观测，跳过）");
+  skip("操作者本人排除", "单人环境机制不可观测");
 }
 
 /** 删除 slug 以 cf-verify 开头的所有验收项目（级联清掉字段/issue/通知/导出目标）。
