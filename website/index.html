@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solo Issue — 面向个人和小团队的自托管问题追踪工具</title>
+<meta name="description" content="自托管问题追踪工具：记录任务和 bug，指派负责人，跟踪到完成。数据只存在你自己的数据库里，支持企业微信集成与 AI 助手接入，MIT 开源。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://xesam.github.io/solo-issue/">
+<meta property="og:title" content="Solo Issue — 面向个人和小团队的自托管问题追踪工具">
+<meta property="og:description" content="记录任务和 bug，指派负责人，跟踪到完成。自托管、企业微信集成、AI 可接入、MIT 开源。">
+<meta property="og:image" content="https://xesam.github.io/solo-issue/assets/workspace-home.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Solo Issue","operatingSystem":"Docker, Linux","applicationCategory":"BusinessApplication","description":"Self-hosted issue tracking for individuals and small teams","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/xesam/solo-issue/blob/main/LICENSE"}</script>
+<style>
+:root{
+  --ink:#18233F;
+  --text:#23324F;
+  --muted:#5C6B85;
+  --brand-from:#2C93FE;
+  --brand-to:#0040D0;
+  --brand:#0B63D8;
+  --tint:#EDF4FF;
+  --bg:#F7F9FC;
+  --card:#FFFFFF;
+  --border:#E4EAF3;
+  --ok:#059669;
+  --ok-bg:#ECFDF5;
+  --warn:#B45309;
+  --warn-bg:#FFFBF0;
+  --warn-border:#F2E3C4;
+  --code-bg:#101D33;
+  --code-text:#D9E6FF;
+  --code-dim:#8BA3C7;
+  --radius-card:14px;
+  --radius-ctrl:8px;
+  --shadow-card:0 1px 2px rgba(24,35,63,.05);
+  --shadow-lift:0 12px 32px -12px rgba(24,35,63,.18);
+  --shadow-hero:0 24px 64px -28px rgba(24,35,63,.35);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:16px;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(44,147,254,.25)}
+a{color:var(--brand);text-decoration:none}
+a:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+a,button,[data-interactive]{cursor:pointer}
+img{display:block;max-width:100%}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(255,255,255,.86);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.nav-inner{display:flex;align-items:center;gap:28px;height:64px}
+.nav-logo img{height:26px;width:auto}
+.nav-links{display:flex;gap:4px;flex:1}
+.nav-links a{color:var(--muted);font-size:14px;font-weight:500;padding:8px 12px;border-radius:var(--radius-ctrl);transition:color .15s ease-out,background-color .15s ease-out}
+.nav-links a:hover{color:var(--ink);background:var(--tint)}
+.nav-actions{display:flex;align-items:center;gap:12px}
+.lang-toggle{display:flex;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px}
+.lang-toggle button{border:none;background:transparent;font-size:13px;font-weight:600;color:var(--muted);padding:4px 12px;border-radius:999px;transition:color .15s ease-out}
+.lang-toggle button.active{background:var(--card);color:var(--ink);box-shadow:var(--shadow-card)}
+.github-link{display:inline-flex;align-items:center;gap:8px;color:var(--ink);font-size:14px;font-weight:500;padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius-ctrl);background:var(--card);transition:border-color .15s ease-out,color .15s ease-out}
+.github-link:hover{border-color:var(--brand);color:var(--brand)}
+.github-link svg{width:17px;height:17px;fill:currentColor}
+
+.hero{padding:80px 0 96px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-200px 0 auto 0;height:560px;background:radial-gradient(900px 480px at 50% -80px,rgba(44,147,254,.16),rgba(0,64,208,.05) 55%,transparent 75%);pointer-events:none}
+.hero .wrap{position:relative}
+.badge{display:inline-flex;align-items:center;gap:8px;background:var(--tint);border:1px solid rgba(44,147,254,.35);color:#0A50BE;font-size:13px;font-weight:600;padding:5px 14px;border-radius:999px;margin-bottom:24px}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--brand-from),var(--brand-to))}
+.hero h1{font-size:clamp(2.2rem,5vw,3.35rem);line-height:1.25;font-weight:800;color:var(--ink);letter-spacing:-.02em;max-width:760px;margin:0 auto}
+.hero .sub{font-size:clamp(1rem,2vw,1.2rem);color:var(--muted);max-width:640px;margin:20px auto 0}
+.hero-ctas{display:flex;justify-content:center;gap:14px;margin-top:36px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600;padding:12px 26px;border-radius:10px;transition:transform .15s ease-out,box-shadow .15s ease-out,border-color .15s ease-out,color .15s ease-out,filter .15s ease-out}
+.btn-primary{background:linear-gradient(135deg,var(--brand-from),var(--brand-to));color:#fff;box-shadow:0 10px 24px -10px rgba(20,90,220,.55)}
+.btn-primary:hover{transform:translateY(-1px);filter:brightness(1.06)}
+.btn-ghost{background:var(--card);border:1px solid var(--border);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--brand);color:var(--brand);transform:translateY(-1px)}
+.btn-ghost svg{width:17px;height:17px;fill:currentColor}
+
+.shot-frame{max-width:920px;margin:56px auto 0;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-hero);overflow:hidden}
+.shot-bar{display:flex;gap:7px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.shot-bar span{width:11px;height:11px;border-radius:50%}
+.shot-bar span:nth-child(1){background:#FF5F57}
+.shot-bar span:nth-child(2){background:#FEBC2E}
+.shot-bar span:nth-child(3){background:#28C840}
+.shot-frame img{width:100%;height:auto}
+
+.section{padding:88px 0;scroll-margin-top:80px}
+.section-head{text-align:center;max-width:680px;margin:0 auto 56px}
+.eyebrow{display:block;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;background:linear-gradient(135deg,var(--brand-from),var(--brand-to));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}
+.section-head h2{font-size:clamp(1.55rem,3vw,2.05rem);font-weight:800;color:var(--ink);letter-spacing:-.01em}
+.section-head .lead{color:var(--muted);margin-top:14px;font-size:16px}
+
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);padding:26px 24px;box-shadow:var(--shadow-card);transition:transform .15s ease-out,box-shadow .15s ease-out}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.icon-chip{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:var(--tint);color:var(--brand);margin-bottom:16px}
+.icon-chip svg{width:21px;height:21px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.card h3{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px}
+.card p{font-size:14px;color:var(--muted);line-height:1.75}
+
+.fits-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:20px}
+.fit-card{border-radius:var(--radius-card);border:1px solid var(--border);padding:30px}
+.fit-card.yes{background:var(--card);box-shadow:var(--shadow-card)}
+.fit-card.no{background:var(--warn-bg);border-color:var(--warn-border)}
+.fit-card h3{font-size:17px;font-weight:800;margin-bottom:18px}
+.fit-card.yes h3{color:var(--ink)}
+.fit-card.no h3{color:var(--warn)}
+.fit-card ul{list-style:none;display:flex;flex-direction:column;gap:14px}
+.fit-card li{display:flex;gap:12px;font-size:14.5px;line-height:1.65}
+.fit-card .mark{flex:none;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-top:2px}
+.fit-card.yes .mark{background:var(--ok-bg);color:var(--ok)}
+.fit-card.no .mark{background:#FDEED7;color:var(--warn)}
+.fit-card.no li{color:var(--muted)}
+.fit-note{margin-top:18px;padding-top:16px;border-top:1px dashed var(--warn-border);font-size:13.5px;color:var(--muted)}
+.fit-note a{color:var(--warn);font-weight:600}
+
+.shots-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.shot-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--shadow-card);transition:transform .15s ease-out,box-shadow .15s ease-out}
+.shot-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lift)}
+.shot-card img{width:100%;height:auto}
+.shot-card figcaption{padding:14px 18px;font-size:14px;font-weight:600;color:var(--ink);border-top:1px solid var(--border)}
+
+.qs-box{max-width:800px;margin:0 auto}
+.steps{list-style:none;display:flex;flex-direction:column;gap:28px}
+.step{display:grid;grid-template-columns:44px 1fr;gap:18px;align-items:start}
+.step-num{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--brand-from),var(--brand-to));color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -8px rgba(20,90,220,.5)}
+.step-body h3{font-size:16.5px;font-weight:700;color:var(--ink)}
+.step-body p{font-size:14.5px;color:var(--muted);margin:6px 0 12px}
+.code{position:relative;background:var(--code-bg);border-radius:10px;margin-top:4px}
+.code pre{padding:14px 18px;overflow-x:auto;font-size:13px;line-height:1.8;color:var(--code-text)}
+.code .cm{color:var(--code-dim)}
+.copy-btn{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#CFE0FF;font-size:12px;padding:4px 10px;border-radius:6px;transition:background-color .15s ease-out,color .15s ease-out}
+.copy-btn:hover{background:rgba(255,255,255,.15)}
+.copy-btn.done{color:#6EE7A0;border-color:rgba(110,231,160,.4)}
+.copy-btn svg{width:13px;height:13px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.login-url{display:inline-block;background:var(--tint);border:1px solid rgba(44,147,254,.35);color:#0A50BE;font-size:14px;font-weight:600;padding:10px 16px;border-radius:10px;margin-top:4px}
+.qs-note{margin-top:36px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--brand-from);border-radius:10px;padding:16px 20px;font-size:13.5px;color:var(--muted)}
+
+.stack-box{max-width:760px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);padding:12px 28px;box-shadow:var(--shadow-card)}
+.stack-row{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--border);align-items:baseline}
+.stack-row:last-child{border-bottom:none}
+.stack-row .lbl{font-size:14px;color:var(--muted)}
+.stack-row .val{font-size:15px;font-weight:600;color:var(--ink)}
+
+.res-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:16px}
+.res-card{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);padding:20px;color:var(--ink);box-shadow:var(--shadow-card);transition:transform .15s ease-out,box-shadow .15s ease-out,border-color .15s ease-out}
+.res-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:var(--brand)}
+.res-card .arrow{align-self:flex-end;color:var(--muted);transition:transform .15s ease-out,color .15s ease-out}
+.res-card:hover .arrow{transform:translate(2px,-2px);color:var(--brand)}
+.res-card .arrow svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.res-card h3{font-size:15px;font-weight:700}
+.res-card p{font-size:13px;color:var(--muted);line-height:1.6}
+
+footer{border-top:1px solid var(--border);background:var(--card);padding:56px 0 48px;text-align:center}
+footer .f-logo{height:20px;width:auto;margin:0 auto 20px}
+footer .tag{font-size:14px;color:var(--muted)}
+footer .meta{margin-top:14px;font-size:13px;color:var(--muted);display:flex;justify-content:center;gap:8px;flex-wrap:wrap;align-items:center}
+footer .meta .sep{color:var(--border)}
+footer .meta a{color:var(--muted);font-weight:600}
+footer .meta a:hover{color:var(--brand)}
+
+@media (max-width:960px){
+  .fits-grid{grid-template-columns:1fr}
+  .shots-grid{grid-template-columns:1fr}
+}
+@media (max-width:720px){
+  .nav-links{display:none}
+  .hero{padding:56px 0 64px}
+  .section{padding:60px 0}
+  .section-head{margin-bottom:40px}
+  .step{grid-template-columns:1fr;gap:12px}
+  .stack-row{grid-template-columns:1fr;gap:4px}
+}
+</style>
+</head>
+<body>
+
+<nav aria-label="Site">
+  <div class="wrap nav-inner">
+    <a class="nav-logo" href="https://github.com/xesam/solo-issue" aria-label="Solo Issue">
+      <img src="assets/logo.svg" alt="Solo Issue" height="26">
+    </a>
+    <div class="nav-links">
+      <a href="#features" data-i18n="nav.features">功能</a>
+      <a href="#screenshots" data-i18n="nav.screens">界面</a>
+      <a href="#quickstart" data-i18n="nav.quick">快速开始</a>
+      <a href="#resources" data-i18n="nav.docs">下一步</a>
+    </div>
+    <div class="nav-actions">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-lang="zh" aria-pressed="true">中</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+      <a class="github-link" href="https://github.com/xesam/solo-issue">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge"><span class="dot"></span><span data-i18n="hero.badge">v0.0.2 · 内测</span></span>
+    <h1 data-i18n="hero.h1">面向个人和小团队的自托管问题追踪工具</h1>
+    <p class="sub" data-i18n="hero.sub">记录任务和 bug，指派负责人，跟踪到完成。数据只存在你自己的数据库里。</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="#quickstart" data-i18n="hero.cta1">快速开始</a>
+      <a class="btn btn-ghost" href="https://github.com/xesam/solo-issue">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        GitHub
+      </a>
+    </div>
+    <div class="shot-frame">
+      <div class="shot-bar"><span></span><span></span><span></span></div>
+      <img src="assets/workspace-home.png" alt="工作区首页" data-i18n-alt="hero.shotAlt" width="1461" height="872">
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="section" id="why">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="sp.eyebrow">Why Solo Issue</span>
+      <h2 data-i18n="sp.title">为什么选 Solo Issue</h2>
+      <p class="lead" data-i18n="sp.lead">四个特质决定了它的形态。</p>
+    </div>
+    <div class="grid-4">
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6.5 6.5h.01M6.5 17.5h.01"/></svg></span>
+        <h3 data-i18n="sp1t">自托管</h3>
+        <p data-i18n="sp1d">部署在你自己的服务器或电脑上，数据只存在你自己的数据库里。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <h3 data-i18n="sp2t">企业微信集成</h3>
+        <p data-i18n="sp2d">可用企业微信身份登录，提醒推送到企业微信。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg></span>
+        <h3 data-i18n="sp3t">AI 可接入</h3>
+        <p data-i18n="sp3d">提供 REST API 和 MCP 服务器，支持 MCP 的 AI 助手可直接操作。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg></span>
+        <h3 data-i18n="sp4t">MIT 开源</h3>
+        <p data-i18n="sp4d">免费使用，当前为 0.0.2 内测版本。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="fits">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="fits.eyebrow">Fit &amp; Boundary</span>
+      <h2 data-i18n="fits.title">适用场景</h2>
+      <p class="lead" data-i18n="fits.lead">先把适合与不适合说清楚，再决定要不要用。</p>
+    </div>
+    <div class="fits-grid">
+      <div class="fit-card yes">
+        <h3 data-i18n="fits.yes">适合</h3>
+        <ul>
+          <li><span class="mark">✓</span><span data-i18n="fits.y1">团队日常用企业微信沟通，希望群里提到的问题有记录、有负责人、可查进度</span></li>
+          <li><span class="mark">✓</span><span data-i18n="fits.y2">数据必须存放在自己的服务器上，不能使用第三方在线服务</span></li>
+          <li><span class="mark">✓</span><span data-i18n="fits.y3">觉得 Jira、禅道等工具过重，只需要「记问题、分负责人、跟状态」</span></li>
+          <li><span class="mark">✓</span><span data-i18n="fits.y4">个人开发者，在自己电脑上管理项目任务</span></li>
+        </ul>
+      </div>
+      <div class="fit-card no">
+        <h3 data-i18n="fits.no">不适合</h3>
+        <ul>
+          <li><span class="mark">✕</span><span data-i18n="fits.n1">迭代计划</span></li>
+          <li><span class="mark">✕</span><span data-i18n="fits.n2">路线图</span></li>
+          <li><span class="mark">✕</span><span data-i18n="fits.n3">甘特图</span></li>
+          <li><span class="mark">✕</span><span data-i18n="fits.n4">工时统计</span></li>
+        </ul>
+        <p class="fit-note"><span data-i18n="fits.note">Solo Issue 不提供这些功能——</span> <a href="https://github.com/xesam/solo-issue/blob/main/docs/01-architecture.md" target="_blank" rel="noopener" data-i18n="fits.noteLink">产品边界见架构与设计</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="ft.eyebrow">Features</span>
+      <h2 data-i18n="ft.title">功能</h2>
+      <p class="lead" data-i18n="ft.lead">覆盖「记问题、分负责人、跟状态」所需的全部能力。</p>
+    </div>
+    <div class="grid-4">
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span>
+        <h3 data-i18n="ft1t">固定编号与链接</h3>
+        <p data-i18n="ft1d">每个问题有项目内编号和固定链接，描述、讨论、附件、处理进度集中在一个页面。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+        <h3 data-i18n="ft2t">通知提醒</h3>
+        <p data-i18n="ft2d">被指派、被 @、状态变更、新评论时收到站内通知；接入企业微信后同步推送，可按提醒类型单独关闭。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-7.5 4"/><path d="M3 4v4h4"/><path d="M12 7v5l3 3"/></svg></span>
+        <h3 data-i18n="ft3t">变更记录</h3>
+        <p data-i18n="ft3d">状态、负责人、描述、自定义字段的每次修改及每条评论，都记录操作人和时间，显示在问题时间线中。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span>
+        <h3 data-i18n="ft4t">自定义字段</h3>
+        <p data-i18n="ft4d">支持文本、数字、日期、单选、多选、成员六种类型；单选、多选可用于筛选；字段配置可导出并导入其他项目。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M5 4h3v16H5z"/><path d="M11 4h3v10h-3z"/><path d="M17 4h3v13h-3z"/></svg></span>
+        <h3 data-i18n="ft5t">看板与列表</h3>
+        <p data-i18n="ft5d">看板拖动卡片即可改状态；列表按状态、负责人和字段筛选，可保存常用条件；描述和评论支持富文本、粘贴图片和附件。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/></svg></span>
+        <h3 data-i18n="ft6t">权限控制</h3>
+        <p data-i18n="ft6d">工作区成员分负责人、成员、访客三种角色，访客只读；项目可设为私有，仅项目成员和工作区负责人可见。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><path d="M12 3l1.7 5.1a2 2 0 0 0 1.2 1.2L20 11l-5.1 1.7a2 2 0 0 0-1.2 1.2L12 19l-1.7-5.1a2 2 0 0 0-1.2-1.2L4 11l5.1-1.7a2 2 0 0 0 1.2-1.2L12 3z"/></svg></span>
+        <h3 data-i18n="ft7t">AI 助手接入</h3>
+        <p data-i18n="ft7d">支持 MCP 的 AI 助手可查询、创建、更新问题和发表评论；操作记在令牌所属账号名下，权限不超过该账号。</p>
+      </div>
+      <div class="card">
+        <span class="icon-chip"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg></span>
+        <h3 data-i18n="ft8t">部署简单</h3>
+        <p data-i18n="ft8d">单机一条 docker compose 命令启动，只依赖 PostgreSQL，无需额外的缓存或消息队列；界面支持中文和英文。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="screenshots">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="sc.eyebrow">Screenshots</span>
+      <h2 data-i18n="sc.title">界面预览</h2>
+    </div>
+    <div class="shots-grid">
+      <figure class="shot-card">
+        <img src="assets/project-board.png" alt="项目看板视图" data-i18n-alt="sc1a" width="1461" height="872" loading="lazy">
+        <figcaption data-i18n="sc1c">项目看板</figcaption>
+      </figure>
+      <figure class="shot-card">
+        <img src="assets/issue-detail.png" alt="问题详情、时间线与编辑" data-i18n-alt="sc2a" width="1461" height="872" loading="lazy">
+        <figcaption data-i18n="sc2c">问题详情与编辑</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="quickstart">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="qs.eyebrow">Quick Start</span>
+      <h2 data-i18n="qs.title">快速开始</h2>
+      <p class="lead" data-i18n="qs.lead">一条命令启动，只依赖 PostgreSQL。</p>
+    </div>
+    <div class="qs-box">
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num">1</span>
+          <div class="step-body">
+            <h3 data-i18n="qs1t">前置条件</h3>
+            <p data-i18n="qs1d">已安装 Docker 和 Docker Compose，8081 端口空闲；如被占用，可在 apps/web/.env 中修改 APP_PORT，并同步修改 APP_URL 中的端口。</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num">2</span>
+          <div class="step-body">
+            <h3 data-i18n="qs2t">下载并配置</h3>
+            <p data-i18n="qs2d">克隆仓库并复制环境文件模板，然后编辑 apps/web/.env，取消注释并填入管理员账号——必填，不设置密码则无法用邮箱登录。</p>
+            <div class="code">
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-i18n="qs.copy">复制</span></button>
+              <pre><code>git clone https://github.com/xesam/solo-issue.git solo-issue
+cd solo-issue
+cp apps/web/.env.example apps/web/.env</code></pre>
+            </div>
+            <div class="code">
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-i18n="qs.copy">复制</span></button>
+              <pre><code><span class="cm"># apps/web/.env</span>
+ADMIN_EMAIL=admin@example.com
+ADMIN_INIT_PASSWORD=change-me-on-first-login</code></pre>
+            </div>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num">3</span>
+          <div class="step-body">
+            <h3 data-i18n="qs3t">启动</h3>
+            <p data-i18n="qs3d">首次启动需要构建镜像，耗时取决于网络状况。</p>
+            <div class="code">
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span data-i18n="qs.copy">复制</span></button>
+              <pre><code>docker compose --env-file apps/web/.env up --build -d</code></pre>
+            </div>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num">4</span>
+          <div class="step-body">
+            <h3 data-i18n="qs4t">登录</h3>
+            <p data-i18n="qs4d">打开下面地址，用设置的邮箱和密码登录，首次登录按提示修改密码。</p>
+            <a class="login-url" href="http://localhost:8081/solo-issue">http://localhost:8081/solo-issue</a>
+          </div>
+        </li>
+      </ol>
+      <p class="qs-note" data-i18n="qs.note">通过服务器 IP 以 HTTP 访问时，需在 apps/web/.env 中加入 ALLOW_INSECURE_COOKIES=1 后重启；正式部署建议配置 HTTPS，不要开启此项。</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="stack">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="tk.eyebrow">Tech Stack</span>
+      <h2 data-i18n="tk.title">技术栈</h2>
+    </div>
+    <div class="stack-box">
+      <div class="stack-row"><span class="lbl" data-i18n="tk1l">应用</span><span class="val" data-i18n="tk1v">Next.js 15（App Router）</span></div>
+      <div class="stack-row"><span class="lbl" data-i18n="tk2l">数据库</span><span class="val" data-i18n="tk2v">PostgreSQL 15/16 + Prisma</span></div>
+      <div class="stack-row"><span class="lbl" data-i18n="tk3l">后台任务</span><span class="val" data-i18n="tk3v">pg-boss（基于 PostgreSQL 的任务队列）</span></div>
+      <div class="stack-row"><span class="lbl" data-i18n="tk4l">前端</span><span class="val" data-i18n="tk4v">React 19 · TanStack Query · dnd-kit · Tailwind CSS 4 · shadcn/ui</span></div>
+      <div class="stack-row"><span class="lbl" data-i18n="tk5l">富文本</span><span class="val" data-i18n="tk5v">Tiptap</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="resources">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="rs.eyebrow">Resources</span>
+      <h2 data-i18n="rs.title">下一步</h2>
+      <p class="lead" data-i18n="rs.lead">官网之外，细节都在仓库文档里。</p>
+    </div>
+    <div class="res-grid">
+      <a class="res-card" href="https://github.com/xesam/solo-issue/blob/main/docs/08-deployment.md" target="_blank" rel="noopener">
+        <span class="arrow"><svg viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span>
+        <h3 data-i18n="rs1t">部署到服务器</h3>
+        <p data-i18n="rs1d">HTTPS、备份、升级</p>
+      </a>
+      <a class="res-card" href="https://github.com/xesam/solo-issue/blob/main/docs/09-wecom-setup.md" target="_blank" rel="noopener">
+        <span class="arrow"><svg viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span>
+        <h3 data-i18n="rs2t">接入企业微信</h3>
+        <p data-i18n="rs2d">同事免注册登录并接收推送</p>
+      </a>
+      <a class="res-card" href="https://github.com/xesam/solo-issue/blob/main/docs/01-architecture.md" target="_blank" rel="noopener">
+        <span class="arrow"><svg viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span>
+        <h3 data-i18n="rs3t">架构与设计</h3>
+        <p data-i18n="rs3d">了解设计取舍，判断是否适合自己</p>
+      </a>
+      <a class="res-card" href="https://github.com/xesam/solo-issue/blob/main/AGENTS.md" target="_blank" rel="noopener">
+        <span class="arrow"><svg viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span>
+        <h3 data-i18n="rs4t">接入 AI 助手</h3>
+        <p data-i18n="rs4d">REST API 与 MCP 接入说明</p>
+      </a>
+      <a class="res-card" href="https://github.com/xesam/solo-issue/blob/main/docs/README.md" target="_blank" rel="noopener">
+        <span class="arrow"><svg viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span>
+        <h3 data-i18n="rs5t">本地开发与贡献</h3>
+        <p data-i18n="rs5d">本地开发、参与贡献</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <img class="f-logo" src="assets/logo.svg" alt="Solo Issue">
+    <p class="tag" data-i18n="footer.tag">面向个人和小团队的自托管问题追踪工具</p>
+    <p class="meta">
+      <a href="https://github.com/xesam/solo-issue/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.lic">MIT 开源协议</a>
+      <span class="sep">·</span>
+      <span data-i18n="footer.ver">v0.0.2 · 内测</span>
+      <span class="sep">·</span>
+      <a href="https://github.com/xesam/solo-issue" target="_blank" rel="noopener">GitHub</a>
+    </p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var zh = {};
+  var zhExtra = { 'qs.copied': '已复制' };
+
+  function snapshot() {
+    zh._title = document.title;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      zh[el.getAttribute('data-i18n')] = el.textContent;
+    });
+    document.querySelectorAll('[data-i18n-alt]').forEach(function (el) {
+      zh[el.getAttribute('data-i18n-alt')] = el.getAttribute('alt');
+    });
+    Object.keys(zhExtra).forEach(function (k) { zh[k] = zhExtra[k]; });
+  }
+
+  var en = {
+    '_title': 'Solo Issue — Self-hosted issue tracking for individuals and small teams',
+    'nav.features': 'Features',
+    'nav.screens': 'Screenshots',
+    'nav.quick': 'Quick Start',
+    'nav.docs': 'Resources',
+    'hero.badge': 'v0.0.2 · Beta',
+    'hero.h1': 'Self-hosted issue tracking for individuals and small teams',
+    'hero.sub': 'Track tasks and bugs, assign owners, and follow through to completion. Your data stays in your own database.',
+    'hero.cta1': 'Get started',
+    'hero.shotAlt': 'Workspace home',
+    'sp.eyebrow': 'Why Solo Issue',
+    'sp.title': 'Why Solo Issue',
+    'sp.lead': 'Four traits define what it is.',
+    'sp1t': 'Self-hosted',
+    'sp1d': 'Runs on your own server or PC — your data lives only in your own database.',
+    'sp2t': 'WeCom integration',
+    'sp2d': 'Sign in with your WeCom identity and get notifications pushed into WeCom.',
+    'sp3t': 'AI-ready',
+    'sp3d': 'Ships with a REST API and an MCP server, so MCP-capable assistants can operate it directly.',
+    'sp4t': 'Open source, MIT',
+    'sp4d': 'Free to use. Currently version 0.0.2, beta.',
+    'fits.eyebrow': 'Fit & Boundary',
+    'fits.title': 'Is it for you?',
+    'fits.lead': 'Where it fits, and where it doesn\u2019t — stated up front.',
+    'fits.yes': 'Good fit',
+    'fits.y1': 'Your team lives in WeCom and wants issues raised in group chats to be recorded, owned, and trackable',
+    'fits.y2': 'Your data must stay on your own servers — third-party SaaS is not an option',
+    'fits.y3': 'Jira or ZenTao feels too heavy — you just need to record, assign, and track',
+    'fits.y4': 'You\u2019re a solo developer managing project tasks on your own machine',
+    'fits.no': 'Not for you',
+    'fits.n1': 'Iteration planning',
+    'fits.n2': 'Roadmaps',
+    'fits.n3': 'Gantt charts',
+    'fits.n4': 'Time tracking',
+    'fits.note': 'Solo Issue doesn\u2019t offer these —',
+    'fits.noteLink': 'see the product boundary in the architecture notes',
+    'ft.eyebrow': 'Features',
+    'ft.title': 'Features',
+    'ft.lead': 'Everything it takes to record, assign, and track.',
+    'ft1t': 'Fixed numbers & links',
+    'ft1d': 'Every issue gets a project-scoped number and a permanent link — description, discussion, attachments, and progress live on one page.',
+    'ft2t': 'Notifications',
+    'ft2d': 'In-app notifications on assignments, mentions, status changes, and new comments — pushed to WeCom once connected, with per-type controls.',
+    'ft3t': 'Change history',
+    'ft3d': 'Every change to state, assignee, description, or custom fields, plus every comment, is recorded with who and when in the issue timeline.',
+    'ft4t': 'Custom fields',
+    'ft4d': 'Six field types — text, number, date, select, multi-select, member. Selects are filterable, and field configs export to other projects.',
+    'ft5t': 'Board & list',
+    'ft5d': 'Drag a card across the board to change its state; filter lists by state, assignee, or fields and save frequent filters. Rich text, pasted images, and attachments included.',
+    'ft6t': 'Permissions',
+    'ft6d': 'Three workspace roles — owner, member, and read-only guest. Projects can be private, visible only to project members and workspace owners.',
+    'ft7t': 'AI assistant access',
+    'ft7d': 'MCP-capable assistants can search, create, and update issues and post comments — actions are attributed to the token owner and never exceed that account\u2019s permissions.',
+    'ft8t': 'Simple deployment',
+    'ft8d': 'One docker compose command on a single machine, with PostgreSQL as the only dependency — no extra cache or message queue. UI in Chinese and English.',
+    'sc.eyebrow': 'Screenshots',
+    'sc.title': 'Screenshots',
+    'sc1a': 'Project board, kanban view',
+    'sc1c': 'Project board',
+    'sc2a': 'Issue detail with timeline and editing',
+    'sc2c': 'Issue detail & editing',
+    'qs.eyebrow': 'Quick Start',
+    'qs.title': 'Quick Start',
+    'qs.lead': 'One command to start, with PostgreSQL as the only dependency.',
+    'qs1t': 'Prerequisites',
+    'qs1d': 'Docker and Docker Compose installed, port 8081 free; if occupied, change APP_PORT in apps/web/.env and the port in APP_URL accordingly.',
+    'qs2t': 'Download & configure',
+    'qs2d': 'Clone the repo and copy the env template, then edit apps/web/.env to set the admin account — required; without a password, email sign-in won\u2019t work.',
+    'qs3t': 'Start',
+    'qs3d': 'The first run builds the image; duration depends on your network.',
+    'qs4t': 'Sign in',
+    'qs4d': 'Open the address below, sign in with the email and password you set, and change the password when prompted.',
+    'qs.note': 'Accessing via a server IP over HTTP? Add ALLOW_INSECURE_COOKIES=1 in apps/web/.env and restart. For real deployments, prefer HTTPS and leave this off.',
+    'qs.copy': 'Copy',
+    'qs.copied': 'Copied',
+    'tk.eyebrow': 'Tech Stack',
+    'tk.title': 'Tech stack',
+    'tk1l': 'Application',
+    'tk1v': 'Next.js 15 (App Router)',
+    'tk2l': 'Database',
+    'tk2v': 'PostgreSQL 15/16 + Prisma',
+    'tk3l': 'Background jobs',
+    'tk3v': 'pg-boss (PostgreSQL-backed job queue)',
+    'tk4l': 'Frontend',
+    'tk4v': 'React 19 · TanStack Query · dnd-kit · Tailwind CSS 4 · shadcn/ui',
+    'tk5l': 'Rich text',
+    'tk5v': 'Tiptap',
+    'rs.eyebrow': 'Resources',
+    'rs.title': 'Where next',
+    'rs.lead': 'Beyond this page, the details live in the repo docs.',
+    'rs1t': 'Deploy to a server',
+    'rs1d': 'HTTPS, backups, upgrades',
+    'rs2t': 'Set up WeCom',
+    'rs2d': 'Passwordless sign-in and push notifications for your team',
+    'rs3t': 'Architecture & design',
+    'rs3d': 'Read the trade-offs and judge the fit',
+    'rs4t': 'Wire up an AI assistant',
+    'rs4d': 'REST API and MCP integration',
+    'rs5t': 'Develop & contribute',
+    'rs5d': 'Local development and contributing',
+    'footer.tag': 'Self-hosted issue tracking for individuals and small teams',
+    'footer.lic': 'Released under the MIT License',
+    'footer.ver': 'v0.0.2 · Beta'
+  };
+
+  var cur = 'zh';
+
+  function dict() { return cur === 'en' ? en : zh; }
+
+  function apply(lang) {
+    cur = lang;
+    var d = dict();
+    document.documentElement.lang = lang;
+    document.title = d['_title'];
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var k = el.getAttribute('data-i18n');
+      if (d[k] != null) el.textContent = d[k];
+    });
+    document.querySelectorAll('[data-i18n-alt]').forEach(function (el) {
+      var k = el.getAttribute('data-i18n-alt');
+      if (d[k] != null) el.setAttribute('alt', d[k]);
+    });
+    document.querySelectorAll('[data-lang]').forEach(function (b) {
+      var on = b.getAttribute('data-lang') === lang;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    try { localStorage.setItem('solo-issue-site-lang', lang); } catch (e) {}
+  }
+
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+
+  function copyText(text, done) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text); done(); });
+    } else {
+      legacyCopy(text);
+      done();
+    }
+  }
+
+  snapshot();
+
+  var saved = null;
+  try { saved = localStorage.getItem('solo-issue-site-lang'); } catch (e) {}
+  if (saved !== 'zh' && saved !== 'en') {
+    var nav = (navigator.language || 'zh').toLowerCase();
+    saved = nav.indexOf('zh') === 0 ? 'zh' : 'en';
+  }
+  apply(saved);
+
+  document.querySelectorAll('[data-lang]').forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.getAttribute('data-lang')); });
+  });
+
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var box = btn.closest('.code');
+      var code = box ? box.querySelector('code') : null;
+      if (!code) return;
+      copyText(code.innerText, function () {
+        var label = btn.querySelector('span');
+        var d = dict();
+        btn.classList.add('done');
+        label.textContent = d['qs.copied'];
+        setTimeout(function () {
+          btn.classList.remove('done');
+          label.textContent = dict()['qs.copy'];
+        }, 1600);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
