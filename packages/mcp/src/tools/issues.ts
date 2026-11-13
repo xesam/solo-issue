@@ -4,6 +4,20 @@ import { withFieldFilters } from "../http.js";
 
 const seg = encodeURIComponent;
 
+// 纯文本 → Tiptap 文档（按行拆段落，空行保留为空段落）。语义正源在
+// apps/web/src/lib/tiptap-text.ts 的 textToDoc——REST 契约只收 description（正本），
+// descriptionText 是服务端派生列而非输入；对 agent 暴露的纯文本参数在此包装。
+function textToDoc(text: string) {
+  return {
+    type: "doc" as const,
+    content: text.split("\n").map((line) =>
+      line
+        ? { type: "paragraph", content: [{ type: "text", text: line }] }
+        : { type: "paragraph" },
+    ),
+  };
+}
+
 // 不传 = 不写字段；null 值清空，必填不可清空（AGENTS.md 语义）
 const fieldValues = z
   .record(z.unknown())
@@ -92,12 +106,12 @@ export const issueTools: ToolSpec<ListArgs | DetailArgs | CreateArgs | UpdateArg
   {
     name: "create_issue",
     description:
-      "创建 issue（项目内自增序号）。descriptionText 为必填正文，首个非空行充当摘要。先 get_fields_schema 确认 fieldValues 的 key 与类型、list_members 取 userId。无幂等键：调用失败后先 search_everything 确认未重复创建，再补建。",
+      "创建 issue（项目内自增序号）。descriptionText 为必填正文（纯文本，本包包装成富文本提交；首个非空行充当摘要）。先 get_fields_schema 确认 fieldValues 的 key 与类型、list_members 取 userId。无幂等键：调用失败后先 search_everything 确认未重复创建，再补建。",
     inputSchema: createShape,
     run: (api, a) => {
       const c = a as CreateArgs;
       return api.post(`/api/projects/${seg(c.projectId)}/issues`, {
-        descriptionText: c.descriptionText,
+        description: textToDoc(c.descriptionText),
         stateId: c.stateId,
         assigneeIds: c.assigneeIds,
         fieldValues: c.fieldValues,
@@ -112,7 +126,7 @@ export const issueTools: ToolSpec<ListArgs | DetailArgs | CreateArgs | UpdateArg
     run: (api, a) => {
       const u = a as UpdateArgs;
       return api.patch(`/api/projects/${seg(u.projectId)}/issues/${u.number}`, {
-        descriptionText: u.descriptionText,
+        description: u.descriptionText !== undefined ? textToDoc(u.descriptionText) : undefined,
         stateId: u.stateId,
         assigneeIds: u.assigneeIds,
         fieldValues: u.fieldValues,

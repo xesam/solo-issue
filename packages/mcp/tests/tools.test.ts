@@ -121,24 +121,31 @@ describe("issue 工具", () => {
     ).toBe("http://t/solo-issue/api/projects/p1/issues/12/activities");
   });
 
-  it("create_issue：POST body 字段透传", async () => {
+  it("create_issue：纯文本参数包装成 Tiptap doc，以 description 提交（descriptionText 不是输入字段）", async () => {
     const r = await run(byName(issueTools, "create_issue"), {
       projectId: "p1",
-      descriptionText: "d",
+      descriptionText: "首行摘要\n\n第二段",
       assigneeIds: ["u1"],
       fieldValues: { severity: "s1" },
     });
     expect(r.url).toBe("http://t/solo-issue/api/projects/p1/issues");
     expect(r.init.method).toBe("POST");
     expect(JSON.parse(String(r.init.body))).toEqual({
-      descriptionText: "d",
+      description: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "首行摘要" }] },
+          { type: "paragraph" },
+          { type: "paragraph", content: [{ type: "text", text: "第二段" }] },
+        ],
+      },
       stateId: undefined,
       assigneeIds: ["u1"],
       fieldValues: { severity: "s1" },
     });
   });
 
-  it("update_issue：PATCH 部分更新 body", async () => {
+  it("update_issue：PATCH 部分更新 body（未传正文时 description 为 undefined，不携带）", async () => {
     const r = await run(byName(issueTools, "update_issue"), {
       projectId: "p1",
       number: 3,
@@ -147,11 +154,23 @@ describe("issue 工具", () => {
     expect(r.url).toBe("http://t/solo-issue/api/projects/p1/issues/3");
     expect(r.init.method).toBe("PATCH");
     expect(JSON.parse(String(r.init.body))).toEqual({
-      descriptionText: undefined,
+      description: undefined,
       stateId: undefined,
       assigneeIds: undefined,
       fieldValues: undefined,
       isArchived: true,
+    });
+  });
+
+  it("update_issue：传正文时同样包装成 Tiptap doc", async () => {
+    const r = await run(byName(issueTools, "update_issue"), {
+      projectId: "p1",
+      number: 3,
+      descriptionText: "改后正文",
+    });
+    expect(JSON.parse(String(r.init.body)).description).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "改后正文" }] }],
     });
   });
 });

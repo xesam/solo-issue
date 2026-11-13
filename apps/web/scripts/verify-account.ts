@@ -9,6 +9,7 @@
 import "dotenv/config";
 
 import { BASE_PATH } from "../src/lib/base-path";
+import { textToDoc } from "../src/lib/tiptap-text";
 import { check, finish, skip } from "./lib/verify-kit";
 
 const ROOT = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? "8081"}`;
@@ -187,7 +188,7 @@ async function runRest(adminCookie: string) {
   // 负向断言的正锚点：先证明「敏感数据确实存在」，否则"不出现"恒真（接口坏了也绿）
   const secret = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: adminCookie,
-    body: { descriptionText: "绝密-公开源代码上线 verif-keyword-xyz " + Date.now() },
+    body: { description: textToDoc("绝密-公开源代码上线 verif-keyword-xyz " + Date.now()) },
   });
   check("私有项目创建含关键词的 issue（泄露断言前提）", secret.status === 201);
 
@@ -214,7 +215,7 @@ async function runRest(adminCookie: string) {
   check("加入成员后可见", zsSee.status === 200);
   const zsWrite = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: zsCookie,
-    body: { descriptionText: "张三在私有项目提交的问题" },
+    body: { description: textToDoc("张三在私有项目提交的问题") },
   });
   check("私有项目 MEMBER 可写", zsWrite.status === 201);
 
@@ -225,7 +226,7 @@ async function runRest(adminCookie: string) {
   });
   const zsGuestWrite = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: zsCookie,
-    body: { descriptionText: "不应成功" },
+    body: { description: textToDoc("不应成功") },
   });
   check("私有项目 GUEST 只读 → 403", zsGuestWrite.status === 403);
 

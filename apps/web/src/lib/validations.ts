@@ -269,13 +269,14 @@ export const importCustomFieldsSchema = z.object({
 });
 
 // ── issue ──
-// 标题字段已废除：issue 正文即 description（Tiptap 文档 / 纯文本二选一），
-// 各消费面的摘要行由描述首个非空行派生（lib/issue-summary）。
-// 正文必填：description 与 descriptionText 至少一个非空——空 issue 无消费
+// 标题字段已废除：issue 正文即 description（Tiptap 文档），各消费面的摘要行
+// 由 descriptionText 首个非空行派生（lib/issue-summary）。
+// 正文必填：description 非空——descriptionText 是服务端派生列，不是输入字段，
+// API 契约中不存在「只写 descriptionText」的形态（纯文本由调用方自行包装成文档，
+// MCP 包对 agent 的纯文本参数即走 lib/tiptap-text 的 textToDoc）。空 issue 无消费
 // 价值，必填不许静默兜底（客户端置灰 + 服务端双闸）。
 const issueContentShape = z.object({
   description: tiptapDocSchema.nullable().optional(),
-  descriptionText: z.string().max(20000).optional(),
   // stateId：非空字符串（空串是前端占位残留，不该被静默吞成默认状态）
   stateId: z.string().min(1, "errors.stateIdInvalid").nullable().optional(),
   assigneeIds: z.array(z.string()).max(20).optional(),
@@ -284,9 +285,7 @@ const issueContentShape = z.object({
 });
 
 export const createIssueSchema = issueContentShape.superRefine((v, ctx) => {
-  const text = v.description
-    ? docToText(v.description as never)
-    : (v.descriptionText ?? "");
+  const text = v.description ? docToText(v.description as never) : "";
   if (!text.trim())
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -301,7 +300,7 @@ const updateIssueObject = issueContentShape
   .extend({ isArchived: z.boolean().optional() });
 
 export const updateIssueSchema = updateIssueObject.superRefine((v, ctx) => {
-  // 正文不可被「改空」：显式传 description 须为非空文档，descriptionText 须非空白
+  // 正文不可被「改空」：显式传 description 须为非空文档
   if (v.description !== undefined) {
     const text =
       v.description === null ? "" : docToText(v.description as never);
@@ -312,12 +311,6 @@ export const updateIssueSchema = updateIssueObject.superRefine((v, ctx) => {
         path: ["description"],
       });
   }
-  if (v.descriptionText !== undefined && !v.descriptionText.trim())
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "errors.descriptionRequired",
-      path: ["descriptionText"],
-    });
 });
 
 // U3.1：批量更新（每条逐次复用 updateIssue——Activity/通知/护栏全部继承）

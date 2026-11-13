@@ -9,8 +9,9 @@ const meta = (apiContractVersion = 1): MetaInfo => ({
 });
 
 describe("runSelfCheck（启动软闸分诊）", () => {
-  it("契约在支持范围内放行", async () => {
-    await expect(runSelfCheck(async () => meta())).resolves.toEqual(meta());
+  it("契约在支持范围内放行（v1 与 v2 双支持——v2 废除 descriptionText 输入形态，本包自行包装纯文本）", async () => {
+    await expect(runSelfCheck(async () => meta(1))).resolves.toEqual(meta(1));
+    await expect(runSelfCheck(async () => meta(2))).resolves.toEqual(meta(2));
   });
 
   it("401 → 重新签发指引", async () => {
@@ -64,8 +65,8 @@ describe("runSelfCheck（启动软闸分诊）", () => {
   });
 
   it("契约版本越界 → 升级指引且报出两侧范围", async () => {
-    await expect(runSelfCheck(async () => meta(2))).rejects.toThrow(
-      new RegExp(`v2.*${SUPPORTED_CONTRACTS.join("/")}.*solo-issue-mcp@latest`),
+    await expect(runSelfCheck(async () => meta(3))).rejects.toThrow(
+      new RegExp(`v3.*${SUPPORTED_CONTRACTS.join("/")}.*solo-issue-mcp@latest`),
     );
   });
 });

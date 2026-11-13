@@ -283,12 +283,9 @@ export async function createIssue(
       data: {
         projectId,
         number: seq.issueSeq,
-        ...(input.description !== undefined && input.description !== null
-          ? {
-              description: input.description as Prisma.InputJsonValue,
-              descriptionText: docToText(input.description as never),
-            }
-          : { descriptionText: input.descriptionText ?? "" }),
+        // 正文唯一正本是 description（zod 已闸非空）；descriptionText 恒为派生列
+        description: input.description as Prisma.InputJsonValue,
+        descriptionText: docToText(input.description as never),
         stateId: state?.id ?? null,
         createdById: actor.id,
         ...(input.assigneeIds?.length
@@ -509,7 +506,8 @@ export async function updateIssue(
         data: { issueId: before.id, projectId, actorId: actor.id, action: "UPDATED", field: "description" },
       });
       data.description = input.description as Prisma.InputJsonValue;
-      data.descriptionText = input.description === null ? "" : docToText(input.description as never);
+      // descriptionText 恒为派生列（docToText 对 null 产出 ""，与 description 清空同步）
+      data.descriptionText = docToText(input.description as never);
 
       // 仅"新提及"触发通知（旧提及不重复打扰）；正文摘要反映改后的描述
       const newMentions = docToMentions(input.description as never);
@@ -524,11 +522,6 @@ export async function updateIssue(
           body: issueSummary(docToText(input.description as never), 300),
         });
       }
-    } else if (input.descriptionText !== undefined && input.descriptionText !== before.descriptionText) {
-      await tx.activity.create({
-        data: { issueId: before.id, projectId, actorId: actor.id, action: "UPDATED", field: "description" },
-      });
-      data.descriptionText = input.descriptionText;
     }
     if (input.isArchived !== undefined && input.isArchived !== before.isArchived) {
       await tx.activity.create({

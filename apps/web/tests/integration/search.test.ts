@@ -7,6 +7,7 @@ vi.mock("@/server/queue", () => ({
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { textToDoc } from "@/lib/tiptap-text";
 import { createIssue } from "@/server/services/issue";
 import { createCustomField } from "@/server/services/custom-field";
 import { updateProject } from "@/server/services/project";
@@ -53,7 +54,7 @@ beforeAll(async () => {
   });
 
   issueKeyword = uid("v");
-  await createIssue(mobile.id, { descriptionText: `集成搜索命中 ${issueKeyword}` }, actor());
+  await createIssue(mobile.id, { description: textToDoc(`集成搜索命中 ${issueKeyword}`) }, actor());
 });
 
 afterAll(cleanupFixtures);
@@ -134,7 +135,7 @@ describe("全局搜索：截断与排序口径（issue 20 / 项目 5，倒序取
     const kw = uid("v");
     const numbers: number[] = [];
     for (let i = 0; i < 22; i++) {
-      const it = await createIssue(mobile.id, { descriptionText: `截断锚 ${kw} 第${i}号` }, actor());
+      const it = await createIssue(mobile.id, { description: textToDoc(`截断锚 ${kw} 第${i}号`) }, actor());
       numbers.push(it.number);
     }
     // 显式离散化 updatedAt：@updatedAt 是毫秒精度，同一毫秒内并列会让 take:20 的
@@ -190,8 +191,8 @@ describe("全局搜索：跨项目自定义字段过滤（仅 SELECT 可检索�
       },
       { id: owner.id },
     );
-    const hit = await createIssue(p.id, { descriptionText: "字段命中", fieldValues: { sev: "s1" } }, actor());
-    const miss = await createIssue(p.id, { descriptionText: "字段未命中", fieldValues: { sev: "s2" } }, actor());
+    const hit = await createIssue(p.id, { description: textToDoc("字段命中"), fieldValues: { sev: "s1" } }, actor());
+    const miss = await createIssue(p.id, { description: textToDoc("字段未命中"), fieldValues: { sev: "s2" } }, actor());
     const r = await searchEverywhere(owner.id, { q: "", customFilters: { sev: "s1" } });
     expect(r.appliedCustomFilters).toEqual({ sev: "s1" });
     expect(r.matchedFieldProjects).toEqual([
@@ -233,7 +234,7 @@ describe("全局搜索：跨项目自定义字段过滤（仅 SELECT 可检索�
     );
     const multi = await createIssue(
       pm.id,
-      { descriptionText: "多选命中", fieldValues: { tags: ["t1", "t2"] } },
+      { description: textToDoc("多选命中"), fieldValues: { tags: ["t1", "t2"] } },
       actor(),
     );
     const r2 = await searchEverywhere(owner.id, { q: "", customFilters: { tags: "t1" } });

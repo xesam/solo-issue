@@ -9,7 +9,9 @@ import { ApiHttpError } from "./errors.js";
 export const CLIENT_VERSION: string = pkg.version;
 const MCP_CLIENT_PREFIX = "solo-issue-mcp/";
 export const X_CLIENT = `${MCP_CLIENT_PREFIX}${CLIENT_VERSION}`;
-export const SUPPORTED_CONTRACTS = [1] as const;
+// 契约 v2：issue 正文输入只收 description（Tiptap 文档），descriptionText 输入形态废除。
+// 本包对 agent 仍暴露纯文本参数并自行包装（v1 服务端同样接受 description，故双支持）
+export const SUPPORTED_CONTRACTS = [1, 2] as const;
 
 export type MetaInfo = {
   version: string;

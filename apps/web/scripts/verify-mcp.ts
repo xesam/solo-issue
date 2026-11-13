@@ -202,7 +202,7 @@ async function main() {
   console.log("\n[3] 正向矩阵（full 令牌）");
   const m = await spawnMcp(FULL.token);
   const version = m.client.getServerVersion();
-  check("initialize 通过（/api/meta 软闸）且 serverInfo=0.0.2", version?.version === "0.0.2");
+  check("initialize 通过（/api/meta 软闸）且 serverInfo=0.0.3", version?.version === "0.0.3");
 
   const { tools } = await m.client.listTools();
   const names = tools.map((t) => t.name).sort();
@@ -353,14 +353,14 @@ async function main() {
   await safeClose(ham.client);
   await safeClose(m.client);
 
-  // ── 7. 426 版本闸（REST 直打，双闸对照——MCP 包自身恒发 0.0.2 不越狱）──
+  // ── 7. 426 版本闸（REST 直打，双闸对照——MCP 包自身恒发 0.0.3 不越狱）──
   console.log("\n[7] 426 版本闸对照");
   const outdated = await fetch(`${BASE}/api/search?q=x`, {
     headers: { authorization: `Bearer ${FULL.token}`, "x-client": "solo-issue-mcp/0.0.0" },
   });
-  check("过旧 X-Client → 426（消息含升级目标）", outdated.status === 426 && (await outdated.text()).includes("0.0.1"));
+  check("过旧 X-Client → 426（消息含升级目标）", outdated.status === 426 && (await outdated.text()).includes("0.0.3"));
   const current = await fetch(`${BASE}/api/search?q=x`, {
-    headers: { authorization: `Bearer ${FULL.token}`, "x-client": "solo-issue-mcp/0.0.1" },
+    headers: { authorization: `Bearer ${FULL.token}`, "x-client": "solo-issue-mcp/0.0.3" },
   });
   check("当前版 X-Client → 200（对照）", current.status === 200);
 

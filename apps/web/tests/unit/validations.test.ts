@@ -219,19 +219,22 @@ describe("project / state schemas", () => {
 });
 
 describe("issue schemas", () => {
-  it("createIssue：正文必填（description/descriptionText 至少一个非空）、stateId 空串拒绝（前端占位不静默吞）", () => {
-    // 标题已废除：空正文不再是合法 issue
+  it("createIssue：正文必填（description 非空文档）、stateId 空串拒绝（前端占位不静默吞）", () => {
+    // 标题已废除：空正文不再是合法 issue；descriptionText 不是输入字段——
+    // 契约 v2 起纯文本直传形态废除，未知键被 zod 剥离后缺 description 同样拒绝
     expect(rejects(createIssueSchema, {})).toBe(true);
     expect(rejects(createIssueSchema, { descriptionText: "  " })).toBe(true);
+    expect(rejects(createIssueSchema, { descriptionText: "D" })).toBe(true);
     expect(rejects(createIssueSchema, { description: { type: "doc", content: [] } })).toBe(true);
-    expect(createIssueSchema.parse({ descriptionText: "D", stateId: null }).stateId).toBeNull();
-    expect(rejects(createIssueSchema, { descriptionText: "D", stateId: "" })).toBe(true);
+    const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "正文" }] }] };
+    expect(createIssueSchema.parse({ description: doc, stateId: null }).stateId).toBeNull();
+    expect(rejects(createIssueSchema, { description: doc, stateId: "" })).toBe(true);
   });
   it("updateIssue 为部分更新形态（全部可缺省），但正文不可被改空", () => {
     expect(updateIssueSchema.parse({})).toEqual({});
     expect(updateIssueSchema.parse({ isArchived: true }).isArchived).toBe(true);
-    expect(rejects(updateIssueSchema, { descriptionText: "" })).toBe(true);
     expect(rejects(updateIssueSchema, { description: { type: "doc", content: [] } })).toBe(true);
+    expect(rejects(updateIssueSchema, { description: null })).toBe(true);
   });
   it("batch patch 必须至少含一个可改字段", () => {
     expect(rejects(batchUpdateIssueSchema, { numbers: [1], patch: {} })).toBe(true);

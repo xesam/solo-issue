@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { docToMentions, docToText } from "@/lib/tiptap-text";
+import { docToMentions, docToText, textToDoc } from "@/lib/tiptap-text";
 
 describe("docToText", () => {
   it("空文档返回空串", () => {
@@ -150,6 +150,27 @@ describe("docToText", () => {
       ],
     };
     expect(docToText(doc)).toBe("- 加粗与普通");
+  });
+});
+
+describe("textToDoc", () => {
+  it("按行拆段落：非空行带文本节点，空行为空段落", () => {
+    expect(textToDoc("a\nb")).toEqual({
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "a" }] },
+        { type: "paragraph", content: [{ type: "text", text: "b" }] },
+      ],
+    });
+    const blank = textToDoc("a\n\nb");
+    expect(blank.content).toHaveLength(3); // 空行保留为空段落
+    expect(blank.content?.[1]).toEqual({ type: "paragraph" });
+  });
+
+  it("与 docToText 互为近似逆变换（trim 后往返等值）", () => {
+    for (const s of ["单行", "两行\n正文", "空行\n\n也保留", "尾随换行\n", "  \n首行空白  "]) {
+      expect(docToText(textToDoc(s)).trim()).toBe(s.trim());
+    }
   });
 });
 

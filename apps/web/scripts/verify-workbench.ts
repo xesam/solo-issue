@@ -8,6 +8,7 @@
 import "dotenv/config";
 
 import { BASE_PATH } from "../src/lib/base-path";
+import { textToDoc } from "../src/lib/tiptap-text";
 import { check, finish } from "./lib/verify-kit";
 
 const ROOT = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? "8081"}`;
@@ -91,7 +92,7 @@ async function main() {
   const PID = proj.json?.data?.id;
   const issueA = await call("POST", `/api/projects/${PID}/issues`, {
     cookie: adminCookie,
-    body: { descriptionText: "F1-验证-李四的任务", assigneeIds: [mk.json?.data?.id] },
+    body: { description: textToDoc("F1-验证-李四的任务"), assigneeIds: [mk.json?.data?.id] },
   });
   check("公开项目指派李四", issueA.status === 201);
 
@@ -166,7 +167,7 @@ async function main() {
   const PPID = privProj.json?.data?.id;
   const blocked = await call("POST", `/api/projects/${PPID}/issues`, {
     cookie: adminCookie,
-    body: { descriptionText: "不应允许指派", assigneeIds: [mk.json?.data?.id] },
+    body: { description: textToDoc("不应允许指派"), assigneeIds: [mk.json?.data?.id] },
   });
   check("私有项目指派非成员 → 422（防幽灵任务）", blocked.status === 422);
 
@@ -176,7 +177,7 @@ async function main() {
   });
   const okAssign = await call("POST", `/api/projects/${PPID}/issues`, {
     cookie: adminCookie,
-    body: { descriptionText: "私有项目-李四可见的任务", assigneeIds: [mk.json?.data?.id] },
+    body: { description: textToDoc("私有项目-李四可见的任务"), assigneeIds: [mk.json?.data?.id] },
   });
   check("加入成员后指派成功", okAssign.status === 201);
 
