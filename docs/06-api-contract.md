@@ -110,15 +110,15 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/projects/:projectId/issues` | 查询参数：`stateId` `assigneeId` `q` `archived` `orderBy`（`updatedAt`/`createdAt`）`orderDir` + 分页 `page`（1 起，缺省 1）/`pageSize`（10–500，缺省 50）+ `cf.<key>=<value>`；**缺省排序 `updatedAt` 倒序**，显式只支持 `updatedAt`/`createdAt` 两键（`archived` 参数把结果集过滤为单一归档态，不参与排序）；返回 `{ issues, total, page, pageSize }`；`issues[]` 含 `fieldValues` |
-| POST | `/api/projects/:projectId/issues` | `{ description?, descriptionText?, stateId?, assigneeIds?, fieldValues? }`；**正文必填**：`description`（Tiptap 文档）与 `descriptionText`（纯文本）至少一个非空，否则 422；序号在事务内自增；`stateId` 缺省取项目 `isDefault` 状态，显式传 `null` = 有意留「无状态」（与 updateIssue 的 `null`=disconnect 同语义），显式传入但不存在/跨项目 → 422（不静默落为无状态）；`fieldValues` §5.3 动态校验 |
+| POST | `/api/projects/:projectId/issues` | `{ description, stateId?, assigneeIds?, fieldValues? }`；**正文必填**：`description`（Tiptap 文档）非空，否则 422；序号在事务内自增；`stateId` 缺省取项目 `isDefault` 状态，显式传 `null` = 有意留「无状态」（与 updateIssue 的 `null`=disconnect 同语义），显式传入但不存在/跨项目 → 422（不静默落为无状态）；`fieldValues` §5.3 动态校验 |
 | GET | `/api/projects/:projectId/issues/:number` | 详情（含状态/负责人/创建人/`fieldValues`；无标题字段，摘要行由描述首行派生） |
-| PATCH | `/api/projects/:projectId/issues/:number` | 部分更新（含 `fieldValues` 部分写入）；正文不可改空（`description`/`descriptionText` 显式传空 → 422）；服务端 diff 生成活动：`STATE_CHANGED` / `ASSIGNED` / `UNASSIGNED` / `UPDATED`（含 `custom:<key>`）/ `ARCHIVED` / `UNARCHIVED`；进入 COMPLETED 组自动打 `completedAt`，移出自动清空；自定义字段变更可触发字段级通知 |
+| PATCH | `/api/projects/:projectId/issues/:number` | 部分更新（含 `fieldValues` 部分写入）；正文不可改空（`description` 显式传空/`null` → 422）；服务端 diff 生成活动：`STATE_CHANGED` / `ASSIGNED` / `UNASSIGNED` / `UPDATED`（含 `custom:<key>`）/ `ARCHIVED` / `UNARCHIVED`；进入 COMPLETED 组自动打 `completedAt`，移出自动清空；自定义字段变更可触发字段级通知 |
 | POST | `/api/projects/:pid/issues/batch` | 批量更新：200 + `{ updated[], failed[] }`，单条失败不影响他人 |
 | GET | `/api/projects/:projectId/issues/:number/activities` | 活动流（倒序，缺省最近 100 条，支持与 timeline 同款复合游标 `before`/`beforeId`）；Agent 审计面使用，详情页对话面板走 timeline 合并流 |
 | GET | `/api/projects/:projectId/issues/:number/timeline` | **统一时间线（合并流）**：评论+活动按 (createdAt, id) 元组序混排，**排除 `COMMENTED` 活动**（与评论本体重复，只保留评论卡片与其余活动——Agent 按「评论+活动混排」口径预期时须注意此去重）；复合游标 `before`/`beforeId`，缺省最近 50 条 + `hasMore` + `total` |
 | DELETE | `/api/projects/:projectId/issues/:number` | 删除（项目 ADMIN ∨ 工作区负责人 OWNER，即 `requireProjectAdmin`）。评论/活动/通知随 FK 级联；附件行 + 文件一并清理（文件 IO 在事务外，失败不阻断） |
 
-`description` 为 Tiptap 文档（JSON）：服务端派生 `descriptionText` 纯文本（提及渲染为 `@名字`）用于搜索与 IM 摘要；直传 `descriptionText` 亦兼容（Agent 直传形态）。**Issue 无标题字段**：列表/看板/搜索/通知的摘要行由 `descriptionText` 首个非空行读时派生（`lib/issue-summary`）。
+`description` 为 Tiptap 文档（JSON），是 issue 正文的唯一正本与唯一写入口：服务端派生 `descriptionText` 纯文本（提及渲染为 `@名字`）用于搜索与 IM 摘要——`descriptionText` 是派生列、不是输入字段，API 契约中不存在「只写 `descriptionText`」的形态（纯文本由调用方包装成文档，MCP 包对 agent 的纯文本参数即自动包装）。**Issue 无标题字段**：列表/看板/搜索/通知的摘要行由 `descriptionText` 首个非空行读时派生（`lib/issue-summary`）。
 
 ## 7. 评论
 

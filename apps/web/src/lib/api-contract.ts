@@ -2,8 +2,11 @@
 // X-Client 426 版本闸共用此处的常量；packages/mcp 的 SUPPORTED_CONTRACTS
 // 需与本文件保持同步——契约升位按 docs/11-mcp-adapter.md §5.1 定级表走。
 
-export const API_CONTRACT_VERSION = 1 as const;
-export const MIN_MCP_VERSION = "0.0.1" as const;
+// v2（破坏性）：issue 正文输入只收 description（Tiptap 文档），descriptionText
+// 输入形态废除——它是服务端派生列，不是输入字段（docs/02「派生纯文本双存储」）。
+// MCP ≥0.0.3 对 agent 暴露的纯文本参数自行包装成文档提交，不再直传。
+export const API_CONTRACT_VERSION = 2 as const;
+export const MIN_MCP_VERSION = "0.0.3" as const;
 
 // X-Client 约定形态：solo-issue-mcp/<主.次.修订>。非该前缀/非三段数字一律视作
 // 外来客户端（fail-open）：版本闸只治理自家分发的 mcp 包，脚本与自建 Agent 不受影响

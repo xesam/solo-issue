@@ -135,22 +135,22 @@ GET /api/workspaces/:wsSlug/members          → 成员（assignee 的 userId �
 **自定义字段（CF-5）**：写 issue 前先读 `/fields/schema`，其 `properties` 即 `fieldValues` 的可写 key 与类型（`required`/`enum` 完整），可直接作为 tool-call 参数的 JSON Schema 校验器：
 ```json
 POST /api/projects/:pid/issues
-{ "descriptionText": "...", "fieldValues": { "severity": "s1", "customer": "ACME" } }
+{ "description": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "正文首行即摘要" }] }] }, "fieldValues": { "severity": "s1", "customer": "ACME" } }
 ```
 服务端按定义动态校验（类型/枚举/必填/未知 key → 422）；`null` 清空，必填不可清空；变更落 `UPDATED` 活动（`field = custom:<key>`）。
 
 ### create_issue
 ```
 POST /api/projects/:pid/issues
-{ description | descriptionText, stateId?, assigneeIds?: [userId], fieldValues? }
+{ description, stateId?, assigneeIds?: [userId], fieldValues? }
 → 201 { data: issue }   // data.number 为项目内序号
 ```
-**issue 无标题字段**：正文即 `description`（Tiptap 文档）或 `descriptionText`（纯文本，Agent 直传形态），至少一个非空（缺失/空白 → 422）；列表/搜索/通知的摘要行由描述首个非空行读时派生。
+**issue 无标题字段**：正文即 `description`（Tiptap 文档，必填，缺失/空白 → 422）；`descriptionText` 是服务端派生列、不是输入字段——纯文本须由调用方包装成文档（`{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "…" }] }] }`，多行按行拆段落）。列表/搜索/通知的摘要行由描述首个非空行读时派生。
 
 ### update_issue（部分更新，多次调用安全）
 ```
 PATCH /api/projects/:pid/issues/:number
-{ descriptionText?, stateId?, assigneeIds?, fieldValues?, isArchived? }
+{ description?, stateId?, assigneeIds?, fieldValues?, isArchived? }
 ```
 - 状态变更写 STATE_CHANGED 活动；到达 `group=COMPLETED` 状态自动记 completedAt
 - **通知回路**：指派/@提及/状态变更/评论会自动通知同事（站内 + 企微/IM 渠道），Agent 无需自己发通知

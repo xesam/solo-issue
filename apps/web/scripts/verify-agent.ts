@@ -10,6 +10,7 @@
 
 import "dotenv/config";
 import { BASE_PATH } from "../src/lib/base-path";
+import { textToDoc } from "../src/lib/tiptap-text";
 import { check, finish } from "./lib/verify-kit";
 
 const ROOT = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? "8081"}`;
@@ -136,7 +137,7 @@ async function main() {
   const created = await api("POST", `/api/projects/${PID}/issues`, {
     token: TOKEN,
     body: {
-      descriptionText: "[agent-demo] 定时备份任务失败——Agent 巡检发现备份作业连续 2 天未产出快照。",
+      description: textToDoc("[agent-demo] 定时备份任务失败——Agent 巡检发现备份作业连续 2 天未产出快照。"),
       assigneeIds: [ww.user.id],
       stateId: todo.id,
     },
@@ -150,7 +151,7 @@ async function main() {
   // ── 4. Agent 更新 + 评论（@王五 → 走 M4 通知回路）──
   const updated = await api("PATCH", `/api/projects/${PID}/issues/${num}`, {
     token: TOKEN,
-    body: { descriptionText: "[agent-demo] 定时备份任务失败（已升级）" },
+    body: { description: textToDoc("[agent-demo] 定时备份任务失败（已升级）") },
   });
   check("更新 issue", updated.status === 200 && updated.json?.data?.descriptionText?.includes("已升级"));
 
@@ -286,7 +287,7 @@ async function main() {
   check("只读令牌可读 issue", roRead.status === 200);
   const roWrite = await api("POST", `/api/projects/${PID}/issues`, {
     token: RO_TOKEN,
-    body: { descriptionText: "越权尝试" },
+    body: { description: textToDoc("越权尝试") },
   });
   check("只读令牌写 issue → 403", roWrite.status === 403);
 

@@ -78,7 +78,7 @@ Issue 的固定主干只保留两类字段：
 
 | 模型 | 语义要点 |
 |---|---|
-| `Issue` | `number` 项目内序号（`@@unique([projectId, number])`，展示 `PROJ-123`）；**无标题字段**：正文即 `description`(Tiptap JSON) + `descriptionText`(派生纯文本) 双存储，创建/更新至少一个形态非空（422）；列表/看板/搜索/通知的摘要行由 `descriptionText` 首个非空行读时派生（`lib/issue-summary` 单源，无存储列）；`stateId` 删除时 SetNull；`parentId` 子任务预留（自引用层级，当前无写入路径）；`completedAt` 进入 COMPLETED 组自动打、移出自动清；`isArchived` 归档软删 |
+| `Issue` | `number` 项目内序号（`@@unique([projectId, number])`，展示 `PROJ-123`）；**无标题字段**：正文即 `description`(Tiptap JSON) 正本 + `descriptionText`(派生纯文本列，服务端 `docToText` 产出) 双存储——`description` 非空是创建/更新的唯一正文闸（422），API 契约中 `descriptionText` 不是输入字段；列表/看板/搜索/通知的摘要行由 `descriptionText` 首个非空行读时派生（`lib/issue-summary` 单源，无存储列）；`stateId` 删除时 SetNull；`parentId` 子任务预留（自引用层级，当前无写入路径）；`completedAt` 进入 COMPLETED 组自动打、移出自动清；`isArchived` 归档软删 |
 | `State` | `group ∈ ACTIVE/COMPLETED/CANCELLED` **三档结局分类**——只有 COMPLETED 与 CANCELLED 被系统消费（统计/待我处理排除）；「待办/进行中」等阶段语义由项目级状态名表达，不进枚举；`@@unique([projectId, name])` 唯一 |
 | `IssueAssignee` | 复合主键 `(issueId, userId)`，多指派；写入前过可见性护栏 `assertUsersVisible`（防幽灵任务，422） |
 | `Comment` | `body`(Tiptap JSON，含 @mention 节点) + `bodyText`(派生纯文本) 同一双存储模式；`parentId` 串回复预留（当前无写入路径）；`isDeleted` 逻辑删（正文保留） |
@@ -117,7 +117,7 @@ Issue 的固定主干只保留两类字段：
 |---|---|
 | State 按 `group` 分组 | 三档结局分类驱动行为：COMPLETED 自动 `completedAt`；CANCELLED 与 COMPLETED 共同决定「待我处理」排除与修复统计口径；阶段词汇由项目级状态名表达 |
 | 每项目 issue 序号 | `Project.issueSeq` 事务内 `UPDATE ... RETURNING`，展示 `PROJ-123` 人类可读 |
-| 派生纯文本双存储 | 富文本源（`description`/`body`，Tiptap JSON）与派生纯文本列（`descriptionText`/`bodyText`，`apps/web/src/lib/tiptap-text.ts` 派生，提及渲染为 `@名字`）并存——搜索、IM 摘要、AI 全部消费纯文本列 |
+| 派生纯文本双存储 | 富文本源（`description`/`body`，Tiptap JSON）是唯一正本与唯一写入口；派生纯文本列（`descriptionText`/`bodyText`，`apps/web/src/lib/tiptap-text.ts` 的 `docToText` 产出，提及渲染为 `@名字`）不是输入字段——搜索、IM 摘要、AI 全部消费纯文本列；纯文本 → 文档的包装用同文件 `textToDoc` |
 | Activity append-only + JSONB diff | 通知收件规则内联于 issue/comment 写入事务，行为由集成测试背书 |
 | 偏好用 JSONB（类型×渠道矩阵） | 固定布尔列加渠道要 DDL 迁移；JSONB 加渠道零迁移 |
 | Identity 独立表 | 登录渠道与 User 解耦，渠道身份互不相通 |

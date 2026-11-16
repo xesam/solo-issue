@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { textToDoc } from "@/lib/tiptap-text";
 import { HttpError } from "@/lib/api";
 import { MAX_UPLOAD_BYTES, deleteFile, getFile, putFile, resolveKey } from "@/server/storage";
 import {
@@ -46,7 +47,7 @@ beforeAll(async () => {
   await addMember(ws.id, guest.id, "GUEST");
   project = await mkProject(ws.id, owner.id);
   const { createIssue } = await import("@/server/services/issue");
-  const issue = await createIssue(project.id, { descriptionText: "附件宿主" }, actor());
+  const issue = await createIssue(project.id, { description: textToDoc("附件宿主") }, actor());
   issueNumber = issue.number;
 });
 

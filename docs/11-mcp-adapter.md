@@ -106,7 +106,7 @@ solo-issue/
 | `list_issues` | `GET /api/projects/:projectId/issues` | 项目内筛选（stateId/assigneeId/q/分页/cf.*） |
 | `read_issue` | `GET /api/projects/:projectId/issues/:number` | Issue 详情 |
 | `read_history` | `GET /api/projects/:projectId/issues/:number/activities` | 活动流（审计） |
-| `create_issue` | `POST /api/projects/:projectId/issues` | `{ descriptionText, stateId?, assigneeIds?, fieldValues? }`（正文必填；Agent 直传纯文本形态） |
+| `create_issue` | `POST /api/projects/:projectId/issues` | `{ descriptionText, stateId?, assigneeIds?, fieldValues? }`（正文必填；descriptionText 是 agent 面纯文本参数，本包包装成 Tiptap 文档以 `description` 提交——REST 契约无 descriptionText 输入字段） |
 | `update_issue` | `PATCH /api/projects/:projectId/issues/:number` | 部分更新，多次调用安全（正文不可改空） |
 | `add_comment` | `POST /api/projects/:projectId/issues/:number/comments` | Tiptap 文档；提及节点 `{ type: "mention", attrs: { id, label } }` |
 
@@ -217,13 +217,13 @@ README 面向用户写死四条纪律：专用机器人用户（`apps/web/script
 
 ```ts
 // apps/web/src/lib/api-contract.ts —— 契约版本与 MCP 兼容下限的单一事实源
-export const API_CONTRACT_VERSION = 1 as const;
-export const MIN_MCP_VERSION = "0.0.1" as const;
+export const API_CONTRACT_VERSION = 2 as const; // v2：issue 正文输入只收 description，descriptionText 输入形态废除
+export const MIN_MCP_VERSION = "0.0.3" as const;
 ```
 
 | 变更类型 | 例子 | 动作 |
 |---|---|---|
-| 破坏性 | 删/改路由、scope 语义、错误语义、`fields/schema` 结构 | `API_CONTRACT_VERSION++`，同步提升 `MIN_MCP_VERSION` |
+| 破坏性 | 删/改路由、scope 语义、错误语义、`fields/schema` 结构、**删/改请求体字段**（如 v2 废除 issue 正文的 `descriptionText` 输入） | `API_CONTRACT_VERSION++`，同步提升 `MIN_MCP_VERSION` |
 | 兼容 | 新增路由/scope、响应加字段、枚举扩充 | 不动契约版本 |
 
 ### 5.2 服务端设施（强制面）
@@ -292,7 +292,7 @@ sequenceDiagram
 
 实现侧已落地：`packages/mcp` 全量实现（工具面、启动自检、错误透传、单测），verify-mcp 契约矩阵纳入 `pnpm verify`；配套文档影响面均已合入（AGENTS.md 的 426 错误行与 MCP 接入段、06 的 `/api/meta` 与错误语义、10-testing 的验收矩阵分层说明、01 §6 的已实现声明、`packages/mcp/README.md` 用户面文档）。
 
-npm 已发布：`solo-issue-mcp@0.0.1`（2026-10-26）起 `npx -y solo-issue-mcp@latest` 可用，根 README 的 MCP 快速入口已就位。仓库当前版本 0.0.2（whoami / list_workspaces 增补、`wsSlug` 必填化、issue 标题字段废除——`create_issue`/`update_issue` 工具签名随 REST 契约变更；预发布阶段工具面变更随该版一并发出，无独立升位），待发布推上 `latest`。后续发布按 §5.5 单 PR 原子变更：服务端 tag ↔ MCP 版本映射随发布说明记录；工具面破坏性变更按 semver 升位并在 release note 标注。
+npm 已发布：`solo-issue-mcp@0.0.1`（2026-10-26）起 `npx -y solo-issue-mcp@latest` 可用，根 README 的 MCP 快速入口已就位。仓库当前版本 0.0.3：随契约 v2（issue 正文输入只收 `description`，`descriptionText` 输入形态废除——descriptionText 是服务端派生列而非输入字段），MCP 包对 agent 的 `descriptionText` 纯文本参数改为包内包装成 Tiptap 文档以 `description` 提交；存量 `description` 为空而 `descriptionText` 非空的行由 `pnpm backfill-issue-description` 回填。该版与 0.0.2 的工具面增补（whoami / list_workspaces、`wsSlug` 必填化、issue 标题字段废除）一并发出，服务端随部署将 `MIN_MCP_VERSION` 提至 0.0.3。后续发布按 §5.5 单 PR 原子变更：服务端 tag ↔ MCP 版本映射随发布说明记录；工具面破坏性变更按 semver 升位并在 release note 标注。
 
 ## 8. 风险与缓解
 

@@ -60,6 +60,21 @@ export function docToText(doc?: JSONContent | null): string {
   return blocks.join("").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// 纯文本 → Tiptap 文档（按行拆段落，空行保留为空段落）。
+// 近似逆变换：docToText(textToDoc(s)).trim() === s.trim()。
+// 消费方：MCP 包对 descriptionText 参数的包装、存量回填脚本——description 是
+// 唯一正本与唯一写入口，descriptionText 恒为派生列（docs/02「派生纯文本双存储」）
+export function textToDoc(text: string): JSONContent & { type: "doc" } {
+  return {
+    type: "doc",
+    content: text.split("\n").map((line) =>
+      line
+        ? { type: "paragraph", content: [{ type: "text", text: line }] }
+        : { type: "paragraph" },
+    ),
+  };
+}
+
 // 从文档中提取 @提及 的用户 ID 集合（通知引擎用：新提及才触发通知）
 export function docToMentions(doc?: JSONContent | null): Set<string> {
   const ids = new Set<string>();

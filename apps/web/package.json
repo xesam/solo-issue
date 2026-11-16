@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "add-user": "tsx scripts/ops-add-user.ts",
     "refresh-state-colors": "tsx scripts/ops-refresh-default-state-colors.ts",
+    "backfill-issue-description": "tsx scripts/ops-backfill-issue-description.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
